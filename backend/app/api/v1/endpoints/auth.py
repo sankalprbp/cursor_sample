@@ -92,7 +92,7 @@ async def register(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.role,
+        role=user.role.value,  # Convert enum to string
         is_active=user.is_active,
         is_verified=user.is_verified,
         tenant_id=str(user.tenant_id) if user.tenant_id else None,
@@ -173,7 +173,7 @@ async def get_current_user(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.role,
+        role=user.role.value,  # Convert enum to string
         is_active=user.is_active,
         is_verified=user.is_verified,
         tenant_id=str(user.tenant_id) if user.tenant_id else None,
