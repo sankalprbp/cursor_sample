@@ -37,11 +37,20 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/voice_agent_db
       - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-secret-key-change-in-production
+      - OPENAI_API_KEY=your-openai-api-key
+      - ELEVENLABS_API_KEY=your-elevenlabs-api-key
+      - AWS_ACCESS_KEY_ID=your-aws-access-key
+      - AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+      - AWS_S3_BUCKET=your-s3-bucket
+      - AWS_S3_BUCKET_AUDIO=your-s3-audio-bucket
+      - WEBHOOK_SECRET=your-webhook-secret
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - /app/__pycache__
+    # Commented out for production build - uncomment for development
+    # volumes:
+    #   - ./backend:/app
+    #   - /app/__pycache__
     depends_on:
       - postgres
       - redis
@@ -56,13 +65,14 @@ services:
       dockerfile: Dockerfile
     container_name: voice_agent_frontend
     environment:
-      - REACT_APP_API_BASE_URL=http://localhost:8000
-      - REACT_APP_WS_URL=ws://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    # Removed volume mounts for production build
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
     depends_on:
       - backend
     networks:
