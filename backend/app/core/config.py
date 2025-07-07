@@ -18,34 +18,34 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str = "development-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql://postgres:password@postgres:5432/voice_agent_db"
     DATABASE_HOST: str = "localhost"
     DATABASE_PORT: int = 5432
-    DATABASE_NAME: str
-    DATABASE_USER: str
-    DATABASE_PASSWORD: str
+    DATABASE_NAME: str = "voice_agent_db"
+    DATABASE_USER: str = "postgres"
+    DATABASE_PASSWORD: str = "password"
     
     # Redis
-    REDIS_URL: str
+    REDIS_URL: str = "redis://redis:6379/0"
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     
     # API Keys
-    OPENAI_API_KEY: str
-    ELEVENLABS_API_KEY: str
+    OPENAI_API_KEY: str = "sk-placeholder-key"
+    ELEVENLABS_API_KEY: str = "placeholder-key"
     
     # AWS Configuration
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
+    AWS_ACCESS_KEY_ID: str = "placeholder-access-key"
+    AWS_SECRET_ACCESS_KEY: str = "placeholder-secret-key"
     AWS_REGION: str = "us-east-1"
-    AWS_S3_BUCKET: str
-    AWS_S3_BUCKET_AUDIO: str
+    AWS_S3_BUCKET: str = "placeholder-bucket"
+    AWS_S3_BUCKET_AUDIO: str = "placeholder-audio-bucket"
     
     # Voice Configuration
     ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"
@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     TWILIO_PHONE_NUMBER: Optional[str] = None
     
     # Webhook Configuration
-    WEBHOOK_SECRET: str
+    WEBHOOK_SECRET: str = "development-webhook-secret"
     
     # Billing
     STRIPE_SECRET_KEY: Optional[str] = None
@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: Optional[str] = None
     
-    # CORS
+    # CORS  
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
     ALLOWED_HOSTS: List[str] = ["*"]
     
@@ -83,23 +83,29 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
-        if isinstance(v, str):
+        if isinstance(v, str) and v:
             return [origin.strip() for origin in v.split(",")]
-        return v
+        elif isinstance(v, list):
+            return v
+        return ["http://localhost:3000"]
     
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
     def parse_allowed_hosts(cls, v):
-        if isinstance(v, str):
+        if isinstance(v, str) and v:
             return [host.strip() for host in v.split(",")]
-        return v
+        elif isinstance(v, list):
+            return v
+        return ["*"]
     
     @field_validator("ALLOWED_FILE_TYPES", mode="before")
     @classmethod
     def parse_file_types(cls, v):
-        if isinstance(v, str):
+        if isinstance(v, str) and v:
             return [file_type.strip() for file_type in v.split(",")]
-        return v
+        elif isinstance(v, list):
+            return v
+        return ["pdf", "txt", "docx", "md"]
     
     class Config:
         env_file = ".env"
