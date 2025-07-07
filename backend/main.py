@@ -16,6 +16,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.database_init import create_tables, create_sample_data
 from app.core.redis_client import redis_client
 from app.api.v1.router import api_router
 from app.websocket.connection_manager import ConnectionManager
@@ -39,8 +40,15 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         # Initialize database tables
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await create_tables()
+        
+        # Create sample data if needed (only in development)
+        if settings.ENVIRONMENT == "development":
+            try:
+                await create_sample_data()
+            except Exception as e:
+                # Sample data might already exist, just log and continue
+                print(f"ℹ️  Sample data creation skipped: {e}")
         
         # Initialize Redis connection
         await redis_client.ping()
