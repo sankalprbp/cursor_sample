@@ -4,34 +4,13 @@
 -- Create extension for UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+-- Create indexes for better performance (only if tables exist)
+-- These indexes will be created by the application after tables are created
 
-CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
-CREATE INDEX IF NOT EXISTS idx_tenants_subdomain ON tenants(subdomain);
+-- Initial data insertion will be handled by the application after table creation
+-- The following sections are commented out until tables are created by the backend application
 
-CREATE INDEX IF NOT EXISTS idx_calls_tenant_id ON calls(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
-CREATE INDEX IF NOT EXISTS idx_calls_created_at ON calls(created_at);
-CREATE INDEX IF NOT EXISTS idx_calls_caller_number ON calls(caller_number);
-
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_tenant_id ON knowledge_bases(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_kb_id ON knowledge_documents(knowledge_base_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_status ON knowledge_documents(status);
-
-CREATE INDEX IF NOT EXISTS idx_webhooks_tenant_id ON webhooks(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
-CREATE INDEX IF NOT EXISTS idx_webhook_events_event_type ON webhook_events(event_type);
-
-CREATE INDEX IF NOT EXISTS idx_billing_records_tenant_id ON billing_records(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_billing_records_period ON billing_records(period_start, period_end);
-
-CREATE INDEX IF NOT EXISTS idx_usage_metrics_tenant_id ON usage_metrics(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_usage_metrics_date ON usage_metrics(date);
-CREATE INDEX IF NOT EXISTS idx_usage_metrics_type ON usage_metrics(metric_type);
-
+/*
 -- Insert initial super admin user (password: admin123)
 -- Note: In production, this should be changed immediately
 INSERT INTO users (
@@ -192,3 +171,4 @@ BEGIN
     AND aggregation_level = 'daily';
 END;
 $$ LANGUAGE plpgsql;
+*/
