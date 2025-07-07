@@ -5,7 +5,6 @@ Handles all environment variables and settings
 
 import os
 from typing import List, Optional
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -73,43 +72,35 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = None
     
     # CORS  
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
-    ALLOWED_HOSTS: List[str] = ["*"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_HOSTS: str = "*"
     
     # File Upload
     MAX_FILE_SIZE_MB: int = 50
-    ALLOWED_FILE_TYPES: List[str] = ["pdf", "txt", "docx", "md"]
+    ALLOWED_FILE_TYPES: str = "pdf,txt,docx,md"
     
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str) and v:
-            return [origin.strip() for origin in v.split(",")]
-        elif isinstance(v, list):
-            return v
+    def get_allowed_origins(self) -> List[str]:
+        """Get ALLOWED_ORIGINS as a list"""
+        if isinstance(self.ALLOWED_ORIGINS, str):
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
         return ["http://localhost:3000"]
     
-    @field_validator("ALLOWED_HOSTS", mode="before")
-    @classmethod
-    def parse_allowed_hosts(cls, v):
-        if isinstance(v, str) and v:
-            return [host.strip() for host in v.split(",")]
-        elif isinstance(v, list):
-            return v
+    def get_allowed_hosts(self) -> List[str]:
+        """Get ALLOWED_HOSTS as a list"""
+        if isinstance(self.ALLOWED_HOSTS, str):
+            return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
         return ["*"]
     
-    @field_validator("ALLOWED_FILE_TYPES", mode="before")
-    @classmethod
-    def parse_file_types(cls, v):
-        if isinstance(v, str) and v:
-            return [file_type.strip() for file_type in v.split(",")]
-        elif isinstance(v, list):
-            return v
+    def get_allowed_file_types(self) -> List[str]:
+        """Get ALLOWED_FILE_TYPES as a list"""
+        if isinstance(self.ALLOWED_FILE_TYPES, str):
+            return [file_type.strip() for file_type in self.ALLOWED_FILE_TYPES.split(",")]
         return ["pdf", "txt", "docx", "md"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True
+    }
 
 
 # Create settings instance
