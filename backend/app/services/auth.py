@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.auth import TokenData, UserCreate, UserLogin
 
 
@@ -183,7 +183,7 @@ class AuthService:
             hashed_password=hashed_password,
             first_name=user_create.first_name,
             last_name=user_create.last_name,
-            role=user_create.role or "user",
+            role=UserRole.TENANT_USER,  # Default role
             tenant_id=tenant_id,
             is_active=True,
             is_verified=False
@@ -195,12 +195,13 @@ class AuthService:
         
         return user
     
-    def check_permissions(self, user: User, required_role: str) -> bool:
+    def check_permissions(self, user: User, required_role: UserRole) -> bool:
         """Check if user has required role/permissions"""
         role_hierarchy = {
-            "user": 1,
-            "tenant_admin": 2,
-            "super_admin": 3
+            UserRole.TENANT_USER: 1,
+            UserRole.AGENT: 1,
+            UserRole.TENANT_ADMIN: 2,
+            UserRole.SUPER_ADMIN: 3
         }
         
         user_level = role_hierarchy.get(user.role, 0)
