@@ -31,7 +31,7 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db_session() -> AsyncSession:
+async def get_db() -> AsyncSession:
     """Get database session"""
     async with async_session_maker() as session:
         try:
