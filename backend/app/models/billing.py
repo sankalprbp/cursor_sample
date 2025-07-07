@@ -107,8 +107,8 @@ class BillingRecord(Base):
     currency = Column(String(3), default="USD", nullable=False)
     tax_rate = Column(Numeric(5, 4), default=0.0000, nullable=False)
     
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # Billing metadata (renamed from 'metadata' to avoid SQLAlchemy conflict)
+    billing_metadata = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
     
     # Timestamps
@@ -183,8 +183,8 @@ class UsageMetric(Base):
     # Aggregation level
     aggregation_level = Column(String(50), default="daily", nullable=False)  # hourly, daily, monthly
     
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # Usage metadata (renamed from 'metadata' to avoid SQLAlchemy conflict)
+    usage_metadata = Column(JSON, nullable=True)
     tags = Column(JSON, default=list, nullable=True)
     
     # Quality metrics

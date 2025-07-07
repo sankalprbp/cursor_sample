@@ -25,6 +25,16 @@ model_config = {
 }
 ```
 
+### **1.5. Fixed SQLAlchemy Reserved Name Conflicts** 🔧
+**Problem**: Backend crashed with `Attribute name 'metadata' is reserved when using the Declarative API`
+
+**Solution**: Renamed reserved column names in database models
+- `Call.metadata` → `Call.call_metadata`
+- `BillingRecord.metadata` → `BillingRecord.billing_metadata`  
+- `UsageMetric.metadata` → `UsageMetric.usage_metadata`
+
+**Note**: This was an oversight in initial Part 1 review - now fully resolved!
+
 ### **2. Completed Database Models**
 **What's Now Available**:
 - ✅ **User Model** - Complete with roles, authentication, and multi-tenant support

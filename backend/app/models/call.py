@@ -118,8 +118,8 @@ class Call(Base):
     call_purpose = Column(String(255), nullable=True)
     resolution_status = Column(String(100), nullable=True)
     
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # Call metadata (renamed from 'metadata' to avoid SQLAlchemy conflict)
+    call_metadata = Column(JSON, nullable=True)
     tags = Column(JSON, default=list, nullable=True)
     
     # Analytics flags
