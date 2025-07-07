@@ -1,119 +1,318 @@
-import React from 'react'
-import Link from 'next/link'
+"use client";
 
-export default function DashboardPage() {
+import React, { useState, useEffect } from 'react';
+import { Phone, PhoneCall, MessageSquare, BarChart3, Settings, Upload, FileText, Users, Clock } from 'lucide-react';
+
+interface Call {
+  id: string;
+  caller_number: string;
+  status: 'active' | 'completed' | 'failed';
+  started_at: string;
+  ended_at?: string;
+  duration_seconds?: number;
+  summary?: string;
+}
+
+interface Stats {
+  totalCalls: number;
+  activeCalls: number;
+  averageDuration: number;
+  successRate: number;
+}
+
+export default function Dashboard() {
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [stats, setStats] = useState<Stats>({
+    totalCalls: 0,
+    activeCalls: 0,
+    averageDuration: 0,
+    successRate: 0
+  });
+  const [isStartingCall, setIsStartingCall] = useState(false);
+  const [testPhoneNumber, setTestPhoneNumber] = useState('+1-555-0123');
+
+  // Simulated data for demo
+  useEffect(() => {
+    // Simulate loading calls
+    const mockCalls: Call[] = [
+      {
+        id: '1',
+        caller_number: '+1-555-0123',
+        status: 'completed',
+        started_at: new Date(Date.now() - 3600000).toISOString(),
+        ended_at: new Date(Date.now() - 3300000).toISOString(),
+        duration_seconds: 300,
+        summary: 'Customer inquiry about pricing. Provided detailed information about our Pro plan.'
+      },
+      {
+        id: '2',
+        caller_number: '+1-555-0456',
+        status: 'completed',
+        started_at: new Date(Date.now() - 7200000).toISOString(),
+        ended_at: new Date(Date.now() - 6900000).toISOString(),
+        duration_seconds: 180,
+        summary: 'Technical support request. Helped customer reset their password.'
+      },
+      {
+        id: '3',
+        caller_number: '+1-555-0789',
+        status: 'active',
+        started_at: new Date(Date.now() - 600000).toISOString(),
+      }
+    ];
+
+    setCalls(mockCalls);
+    
+    // Calculate stats
+    const completedCalls = mockCalls.filter(c => c.status === 'completed');
+    const avgDuration = completedCalls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0) / completedCalls.length;
+    
+    setStats({
+      totalCalls: mockCalls.length,
+      activeCalls: mockCalls.filter(c => c.status === 'active').length,
+      averageDuration: avgDuration || 0,
+      successRate: completedCalls.length / mockCalls.length * 100
+    });
+  }, []);
+
+  const handleStartTestCall = async () => {
+    setIsStartingCall(true);
+    try {
+      // In a real app, this would call the backend API
+      // For now, simulate starting a call
+      setTimeout(() => {
+        const newCall: Call = {
+          id: Date.now().toString(),
+          caller_number: testPhoneNumber,
+          status: 'active',
+          started_at: new Date().toISOString(),
+        };
+        setCalls(prev => [newCall, ...prev]);
+        setStats(prev => ({ ...prev, activeCalls: prev.activeCalls + 1, totalCalls: prev.totalCalls + 1 }));
+        setIsStartingCall(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to start call:', error);
+      setIsStartingCall(false);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTime = (isoString: string) => {
+    return new Date(isoString).toLocaleString();
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="px-4 lg:px-6 h-14 flex items-center border-b">
-        <Link className="flex items-center justify-center" href="/">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">VA</span>
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Voice Agent Dashboard</h1>
+              <p className="text-gray-600">Monitor and manage your AI phone agents</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </button>
+            </div>
           </div>
-          <span className="ml-2 text-lg font-semibold">Voice Agent Platform</span>
-        </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/dashboard">
-            Dashboard
-          </Link>
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/docs">
-            Documentation
-          </Link>
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/login">
-            Login
-          </Link>
-        </nav>
+        </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Manage your voice agents and monitor performance.
-          </p>
-        </div>
-
-        {/* Dashboard Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* Stats Cards */}
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium">Total Agents</h3>
-              <span className="text-2xl">🤖</span>
-            </div>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">
-              +2 from last month
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium">Active Calls</h3>
-              <span className="text-2xl">📞</span>
-            </div>
-            <div className="text-2xl font-bold">142</div>
-            <p className="text-xs text-muted-foreground">
-              +12% from last hour
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium">Success Rate</h3>
-              <span className="text-2xl">✅</span>
-            </div>
-            <div className="text-2xl font-bold">98.5%</div>
-            <p className="text-xs text-muted-foreground">
-              +0.1% from yesterday
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium">Avg Duration</h3>
-              <span className="text-2xl">⏱️</span>
-            </div>
-            <div className="text-2xl font-bold">3m 24s</div>
-            <p className="text-xs text-muted-foreground">
-              -8s from last week
-            </p>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="mt-8">
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold">Recent Activity</h3>
-              <div className="mt-4 space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Agent &quot;Customer Support&quot; handled 23 calls</p>
-                    <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                  </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Phone className="h-6 w-6 text-gray-400" />
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">New agent &quot;Sales Assistant&quot; deployed</p>
-                    <p className="text-xs text-muted-foreground">15 minutes ago</p>
-                  </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Total Calls</dt>
+                    <dd className="text-lg font-medium text-gray-900">{stats.totalCalls}</dd>
+                  </dl>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">System maintenance scheduled</p>
-                    <p className="text-xs text-muted-foreground">1 hour ago</p>
-                  </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <PhoneCall className="h-6 w-6 text-green-400" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Active Calls</dt>
+                    <dd className="text-lg font-medium text-gray-900">{stats.activeCalls}</dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Clock className="h-6 w-6 text-blue-400" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Avg Duration</dt>
+                    <dd className="text-lg font-medium text-gray-900">{formatDuration(Math.round(stats.averageDuration))}</dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <BarChart3 className="h-6 w-6 text-purple-400" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Success Rate</dt>
+                    <dd className="text-lg font-medium text-gray-900">{stats.successRate.toFixed(1)}%</dd>
+                  </dl>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
+
+        {/* Quick Actions */}
+        <div className="bg-white shadow rounded-lg mb-8">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Start Test Call */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Start Test Call</h4>
+                <p className="text-sm text-gray-500 mb-3">Test your AI agent with a simulated call</p>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={testPhoneNumber}
+                    onChange={(e) => setTestPhoneNumber(e.target.value)}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    placeholder="Phone number"
+                  />
+                  <button
+                    onClick={handleStartTestCall}
+                    disabled={isStartingCall}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isStartingCall ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <PhoneCall className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Knowledge */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Upload Knowledge</h4>
+                <p className="text-sm text-gray-500 mb-3">Add documents to your knowledge base</p>
+                <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Files
+                </button>
+              </div>
+
+              {/* View Analytics */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Analytics</h4>
+                <p className="text-sm text-gray-500 mb-3">View detailed call analytics and insights</p>
+                <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Reports
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Calls */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Calls</h3>
+              <button className="text-sm text-indigo-600 hover:text-indigo-500">View all</button>
+            </div>
+            
+            <div className="overflow-hidden">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Caller
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Duration
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Started
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Summary
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {calls.map((call) => (
+                    <tr key={call.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {call.caller_number}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          call.status === 'active' 
+                            ? 'bg-green-100 text-green-800'
+                            : call.status === 'completed'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {call.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {call.duration_seconds ? formatDuration(call.duration_seconds) : '-'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatTime(call.started_at)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500 max-w-xs truncate">
+                        {call.summary || 'In progress...'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
