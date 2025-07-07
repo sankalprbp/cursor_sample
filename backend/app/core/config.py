@@ -99,7 +99,8 @@ class Settings(BaseSettings):
     
     model_config = {
         "env_file": ".env",
-        "case_sensitive": True
+        "case_sensitive": True,
+        "extra": "ignore"  # Ignore extra environment variables (like REACT_APP_*)
     }
 
 
