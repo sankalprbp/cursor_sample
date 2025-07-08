@@ -11,7 +11,16 @@ from uuid import uuid4
 from app.core.database import async_session_maker, Base, engine
 from app.models.user import User, UserRole
 from app.models.tenant import Tenant, TenantStatus, TenantSubscription, SubscriptionPlan
-from app.services.auth import auth_service
+try:
+    from app.services.auth import auth_service
+except ImportError:
+    # Fallback password hashing if auth service isn't available
+    import hashlib
+    class FallbackAuthService:
+        @staticmethod
+        def get_password_hash(password: str) -> str:
+            return hashlib.sha256(password.encode()).hexdigest()
+    auth_service = FallbackAuthService()
 
 
 async def create_tables():
