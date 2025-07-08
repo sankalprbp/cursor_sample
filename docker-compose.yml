@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -38,6 +36,9 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/voice_agent_db
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=your-secret-key-change-in-production
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=INFO
       - OPENAI_API_KEY=your-openai-api-key
       - ELEVENLABS_API_KEY=your-elevenlabs-api-key
       - AWS_ACCESS_KEY_ID=your-aws-access-key
@@ -45,6 +46,9 @@ services:
       - AWS_S3_BUCKET=your-s3-bucket
       - AWS_S3_BUCKET_AUDIO=your-s3-audio-bucket
       - WEBHOOK_SECRET=your-webhook-secret
+      - SENTRY_DSN=
+      - ALLOWED_ORIGINS=http://localhost:3000
+      - ALLOWED_HOSTS=*
     ports:
       - "8000:8000"
     # Commented out for production build - uncomment for development
