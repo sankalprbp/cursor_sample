@@ -6,7 +6,7 @@ Pydantic models for user-related API operations
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, constr, validator
+from pydantic import BaseModel, EmailStr, constr, field_validator
 from enum import Enum
 
 from app.models.user import UserRole
@@ -15,10 +15,10 @@ from app.models.user import UserRole
 class UserBase(BaseModel):
     """Base user schema with common fields"""
     email: EmailStr
-    username: constr(min_length=3, max_length=50, regex="^[a-zA-Z0-9_-]+$")
+    username: constr(min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")
     first_name: constr(min_length=1, max_length=100)
     last_name: constr(min_length=1, max_length=100)
-    role: Optional[UserRole] = UserRole.USER
+    role: Optional[UserRole] = UserRole.TENANT_USER
     tenant_id: Optional[UUID] = None
 
 
@@ -27,7 +27,7 @@ class UserCreate(UserBase):
     password: constr(min_length=8, max_length=100)
     is_active: Optional[bool] = True
     
-    @validator('password')
+    @field_validator('password')
     def validate_password(cls, v):
         """Ensure password meets complexity requirements"""
         if not any(char.isdigit() for char in v):
@@ -42,7 +42,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Schema for updating user information"""
     email: Optional[EmailStr] = None
-    username: Optional[constr(min_length=3, max_length=50, regex="^[a-zA-Z0-9_-]+$")] = None
+    username: Optional[constr(min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")] = None
     first_name: Optional[constr(min_length=1, max_length=100)] = None
     last_name: Optional[constr(min_length=1, max_length=100)] = None
     role: Optional[UserRole] = None
@@ -66,7 +66,7 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UserListResponse(BaseModel):

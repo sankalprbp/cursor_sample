@@ -164,7 +164,7 @@ async def create_knowledge_base(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -218,7 +218,7 @@ async def update_knowledge_base(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -266,7 +266,7 @@ async def delete_knowledge_base(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
