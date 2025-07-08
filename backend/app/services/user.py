@@ -154,7 +154,7 @@ class UserService:
                 first_name=user_create.first_name,
                 last_name=user_create.last_name,
                 hashed_password=auth_service.get_password_hash(user_create.password),
-                role=user_create.role or UserRole.USER,
+                role=user_create.role or UserRole.TENANT_USER,
                 tenant_id=tenant_id or user_create.tenant_id,
                 is_active=user_create.is_active if user_create.is_active is not None else True,
                 is_verified=False
@@ -318,7 +318,7 @@ class UserService:
                     "calls:read", "calls:write",
                     "analytics:read"
                 ],
-                UserRole.USER: [
+                UserRole.TENANT_USER: [
                     "users:read:self",
                     "knowledge:read",
                     "calls:read",

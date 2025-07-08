@@ -11,8 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 
-from app.models.tenant import Tenant, TenantStatus, TenantSettings
-from app.models.billing import TenantSubscription, BillingPlan
+from app.models.tenant import Tenant, TenantStatus, TenantSubscription, SubscriptionPlan
 from app.models.user import User, UserRole
 from app.schemas.tenant import TenantCreate, TenantUpdate, TenantFilters
 from app.core.logging import logger
@@ -30,7 +29,6 @@ class TenantService:
         try:
             query = select(Tenant).where(Tenant.id == tenant_id)
             query = query.options(
-                selectinload(Tenant.settings),
                 selectinload(Tenant.subscription)
             )
             result = await db.execute(query)
@@ -78,8 +76,8 @@ class TenantService:
                 if filters.search:
                     search_filter = or_(
                         Tenant.name.ilike(f"%{filters.search}%"),
-                        Tenant.company_name.ilike(f"%{filters.search}%"),
-                        Tenant.contact_email.ilike(f"%{filters.search}%")
+                        Tenant.email.ilike(f"%{filters.search}%"),
+                        Tenant.company_size.ilike(f"%{filters.search}%")
                     )
                     query = query.where(search_filter)
                     count_query = count_query.where(search_filter)
@@ -99,7 +97,6 @@ class TenantService:
             # Apply pagination
             query = query.offset(skip).limit(limit).order_by(Tenant.created_at.desc())
             query = query.options(
-                selectinload(Tenant.settings),
                 selectinload(Tenant.subscription)
             )
             
@@ -140,58 +137,28 @@ class TenantService:
             # Create tenant instance
             tenant = Tenant(
                 name=tenant_create.name,
-                company_name=tenant_create.company_name,
-                contact_email=tenant_create.contact_email,
-                contact_phone=tenant_create.contact_phone,
+                email=tenant_create.contact_email,
+                phone=tenant_create.contact_phone,
                 industry=tenant_create.industry,
-                size=tenant_create.size,
-                status=TenantStatus.ACTIVE,
-                api_key=Tenant.generate_api_key()
+                company_size=tenant_create.size,
+                status=TenantStatus.TRIAL,  # Start with trial status
+                trial_starts_at=datetime.utcnow(),
+                trial_ends_at=datetime.utcnow() + timedelta(days=14)  # 14-day trial
             )
             
             db.add(tenant)
             await db.flush()  # Get tenant ID before creating related objects
             
-            # Create tenant settings
-            settings = TenantSettings(
-                tenant_id=tenant.id,
-                business_hours=tenant_create.business_hours or {},
-                timezone=tenant_create.timezone or "UTC",
-                language=tenant_create.language or "en",
-                voice_settings=tenant_create.voice_settings or {},
-                call_settings=tenant_create.call_settings or {},
-                integration_settings=tenant_create.integration_settings or {}
-            )
-            db.add(settings)
-            
             # Create default subscription (trial)
-            if tenant_create.plan_id:
-                # Get the specified plan
-                plan_query = select(BillingPlan).where(BillingPlan.id == tenant_create.plan_id)
-                plan_result = await db.execute(plan_query)
-                plan = plan_result.scalar_one_or_none()
-                
-                if not plan:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid billing plan"
-                    )
-            else:
-                # Get trial plan
-                plan_query = select(BillingPlan).where(BillingPlan.name == "Trial")
-                plan_result = await db.execute(plan_query)
-                plan = plan_result.scalar_one_or_none()
-            
-            if plan:
-                subscription = TenantSubscription(
-                    tenant_id=tenant.id,
-                    plan_id=plan.id,
-                    status="active",
-                    current_period_start=datetime.utcnow(),
-                    current_period_end=datetime.utcnow() + timedelta(days=30),
-                    cancel_at_period_end=False
-                )
-                db.add(subscription)
+            subscription = TenantSubscription(
+                tenant_id=tenant.id,
+                plan=SubscriptionPlan.FREE,
+                status="active",
+                current_period_start=datetime.utcnow(),
+                current_period_end=datetime.utcnow() + timedelta(days=30),
+                cancel_at_period_end=False
+            )
+            db.add(subscription)
             
             await db.commit()
             await db.refresh(tenant)
@@ -228,20 +195,7 @@ class TenantService:
             # Update fields
             update_data = tenant_update.dict(exclude_unset=True)
             
-            # Handle settings update separately
-            if "settings" in update_data:
-                settings_data = update_data.pop("settings")
-                if tenant.settings:
-                    for field, value in settings_data.items():
-                        setattr(tenant.settings, field, value)
-                else:
-                    settings = TenantSettings(
-                        tenant_id=tenant_id,
-                        **settings_data
-                    )
-                    db.add(settings)
-            
-            # Update other fields
+            # Update fields directly on tenant
             for field, value in update_data.items():
                 if hasattr(tenant, field):
                     setattr(tenant, field, value)
@@ -278,8 +232,8 @@ class TenantService:
                 )
             
             if soft_delete:
-                # Soft delete - set status to deleted
-                tenant.status = TenantStatus.DELETED
+                # Soft delete - set status to cancelled
+                tenant.status = TenantStatus.CANCELLED
                 
                 # Deactivate all users
                 user_query = select(User).where(User.tenant_id == tenant_id)
@@ -382,38 +336,7 @@ class TenantService:
                 detail="Error reactivating tenant"
             )
     
-    async def regenerate_api_key(
-        self,
-        db: AsyncSession,
-        tenant_id: UUID
-    ) -> str:
-        """Regenerate tenant API key"""
-        try:
-            tenant = await self.get_tenant(db, tenant_id)
-            if not tenant:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Tenant not found"
-                )
-            
-            # Generate new API key
-            new_api_key = Tenant.generate_api_key()
-            tenant.api_key = new_api_key
-            
-            await db.commit()
-            
-            logger.info(f"Regenerated API key for tenant {tenant_id}")
-            return new_api_key
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error regenerating API key for tenant {tenant_id}: {str(e)}")
-            await db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error regenerating API key"
-            )
+
     
     async def get_tenant_statistics(
         self,
@@ -450,7 +373,7 @@ class TenantService:
                 "user_count": user_count,
                 "created_at": tenant.created_at.isoformat(),
                 "subscription": {
-                    "plan": tenant.subscription.plan.name if tenant.subscription else "None",
+                    "plan": tenant.subscription.plan.value if tenant.subscription else "None",
                     "status": tenant.subscription.status if tenant.subscription else "None"
                 }
                 # Add more statistics as needed

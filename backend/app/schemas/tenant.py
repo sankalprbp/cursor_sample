@@ -6,7 +6,7 @@ Pydantic models for tenant-related API operations
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, constr, validator
+from pydantic import BaseModel, EmailStr, constr
 from enum import Enum
 
 from app.models.tenant import TenantStatus
@@ -24,7 +24,7 @@ class TenantSettingsSchema(BaseModel):
 
 class TenantBase(BaseModel):
     """Base tenant schema with common fields"""
-    name: constr(min_length=3, max_length=100, regex="^[a-zA-Z0-9_-]+$")
+    name: constr(min_length=3, max_length=100, pattern="^[a-zA-Z0-9_-]+$")
     company_name: constr(min_length=1, max_length=200)
     contact_email: EmailStr
     contact_phone: Optional[constr(max_length=20)] = None
@@ -70,7 +70,7 @@ class TenantResponse(BaseModel):
     subscription: Optional[Dict[str, Any]] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TenantListResponse(BaseModel):

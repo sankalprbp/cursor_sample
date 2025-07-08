@@ -162,7 +162,7 @@ async def get_tenant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    elif current_user.role == UserRole.USER:
+    elif current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -262,7 +262,7 @@ async def update_tenant(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    elif current_user.role == UserRole.USER:
+    elif current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -405,7 +405,7 @@ async def regenerate_api_key(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    elif current_user.role == UserRole.USER:
+    elif current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -436,7 +436,7 @@ async def get_tenant_statistics(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    elif current_user.role == UserRole.USER:
+    elif current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
