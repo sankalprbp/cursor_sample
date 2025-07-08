@@ -45,7 +45,7 @@ async def list_users(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -105,7 +105,7 @@ async def get_user(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER and current_user.id != user_id:
+    if current_user.role == UserRole.TENANT_USER and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -152,7 +152,7 @@ async def create_user(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -200,14 +200,14 @@ async def update_user(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER and current_user.id != user_id:
+    if current_user.role == UserRole.TENANT_USER and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
     
     # Regular users cannot change their role
-    if current_user.role == UserRole.USER and user_update.role is not None:
+    if current_user.role == UserRole.TENANT_USER and user_update.role is not None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot change own role"
@@ -249,7 +249,7 @@ async def delete_user(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -291,7 +291,7 @@ async def verify_user(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER:
+    if current_user.role == UserRole.TENANT_USER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -317,7 +317,7 @@ async def get_user_permissions(
     current_user = await auth_service.get_current_user(db, credentials)
     
     # Check permissions
-    if current_user.role == UserRole.USER and current_user.id != user_id:
+    if current_user.role == UserRole.TENANT_USER and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"

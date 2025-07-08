@@ -6,7 +6,7 @@ Pydantic models for knowledge base API operations
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, constr, validator, Field
+from pydantic import BaseModel, constr, Field
 from enum import Enum
 
 from app.models.knowledge_base import DocumentType, DocumentStatus
@@ -67,7 +67,7 @@ class KnowledgeBaseResponse(BaseModel):
     updated_at: str
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class KnowledgeBaseListResponse(BaseModel):
@@ -115,7 +115,7 @@ class DocumentResponse(BaseModel):
     processed_at: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DocumentListResponse(BaseModel):
