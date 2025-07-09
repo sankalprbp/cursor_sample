@@ -26,7 +26,7 @@ A comprehensive platform that provides AI-powered voice agents for businesses to
 - **AI/ML**: OpenAI GPT models
 - **Voice Synthesis**: ElevenLabs API
 - **Infrastructure**: AWS (EC2, RDS, S3, Lambda)
-- **Database**: PostgreSQL
+ - **Database**: PostgreSQL (SQLite for local dev)
 - **Real-time**: WebSockets, WebRTC
 - **Containerization**: Docker
 - **Version Control**: GitHub
@@ -65,6 +65,8 @@ cd voice-agent-platform
 ```bash
 cp .env.example .env
 # Edit .env with your API keys and configurations
+# SQLite is the default for quick setup.
+# To use PostgreSQL instead, set DATABASE_URL to your Postgres connection string.
 ```
 
 3. Start development environment:
