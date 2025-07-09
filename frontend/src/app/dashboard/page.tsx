@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Phone, PhoneCall, MessageSquare, BarChart3, Settings, Upload, FileText, Users, Clock } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Call {
   id: string;
@@ -21,6 +23,8 @@ interface Stats {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [calls, setCalls] = useState<Call[]>([]);
   const [stats, setStats] = useState<Stats>({
     totalCalls: 0,
@@ -30,6 +34,12 @@ export default function Dashboard() {
   });
   const [isStartingCall, setIsStartingCall] = useState(false);
   const [testPhoneNumber, setTestPhoneNumber] = useState('+1-555-0123');
+
+  useEffect(() => {
+    if (!user) {
+      router.push('/login');
+    }
+  }, [user, router]);
 
   // Simulated data for demo
   useEffect(() => {
@@ -106,6 +116,10 @@ export default function Dashboard() {
   const formatTime = (isoString: string) => {
     return new Date(isoString).toLocaleString();
   };
+
+  if (!user) {
+    return <div className="p-4">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
