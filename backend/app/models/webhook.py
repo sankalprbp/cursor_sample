@@ -9,11 +9,11 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer, JSON
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.core.types import GUID
 
 
 class WebhookEventType(enum.Enum):
@@ -54,9 +54,9 @@ class Webhook(Base):
     __tablename__ = "webhooks"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
     
     # Webhook details
     name = Column(String(255), nullable=False)
@@ -138,8 +138,8 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhooks.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    webhook_id = Column(GUID(), ForeignKey("webhooks.id"), nullable=False, index=True)
     
     # Event identification
     event_id = Column(String(255), nullable=False, unique=True, index=True)
