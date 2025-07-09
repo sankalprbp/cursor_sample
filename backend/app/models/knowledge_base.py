@@ -9,11 +9,11 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer, JSON
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.core.types import GUID
 
 
 class DocumentType(enum.Enum):
@@ -42,8 +42,8 @@ class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
     
     # Basic information
     name = Column(String(255), nullable=False)
@@ -107,8 +107,8 @@ class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    knowledge_base_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_bases.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    knowledge_base_id = Column(GUID(), ForeignKey("knowledge_bases.id"), nullable=False, index=True)
     
     # File information
     filename = Column(String(255), nullable=False)
@@ -148,7 +148,7 @@ class KnowledgeDocument(Base):
     last_accessed = Column(DateTime(timezone=True), nullable=True)
     
     # User information
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    uploaded_by = Column(GUID(), ForeignKey("users.id"), nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

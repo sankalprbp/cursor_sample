@@ -9,7 +9,7 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID
+from app.core.types import GUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -30,7 +30,7 @@ class User(Base):
     __tablename__ = "users"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=True)
     
@@ -49,7 +49,7 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.TENANT_USER, nullable=False)
     
     # Multi-tenant relationship
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=True)
     
     # Security and session management
     last_login = Column(DateTime(timezone=True), nullable=True)

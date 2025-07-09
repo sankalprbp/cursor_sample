@@ -3,20 +3,34 @@ Database Configuration
 SQLAlchemy async setup for PostgreSQL
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+)
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
+
+from sqlalchemy.engine.url import make_url
 
 from app.core.config import settings
 
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
-    echo=settings.DEBUG,
-    poolclass=NullPool,
-    pool_pre_ping=True,
-)
+# Determine engine options based on database URL
+db_url = make_url(settings.DATABASE_URL)
+if db_url.drivername.startswith("sqlite"):
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    engine = create_async_engine(
+        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=settings.DEBUG,
+        poolclass=NullPool,
+        pool_pre_ping=True,
+    )
 
 # Create session maker
 async_session_maker = async_sessionmaker(
@@ -51,5 +65,4 @@ async def create_tables():
 
 async def drop_tables():
     """Drop all database tables"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    async with engine.begin() as conn:        await conn.run_sync(Base.metadata.drop_all)
