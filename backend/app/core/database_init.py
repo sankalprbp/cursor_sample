@@ -5,6 +5,7 @@ Creates tables and populates with sample data for development
 
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -37,8 +38,10 @@ async def create_sample_data():
     
     async with async_session_maker() as session:
         try:
-            # Check if demo tenant already exists
-            existing_tenant = await session.get(Tenant, "b1244b00-5bb5-4f55-94e3-720d683ae82c")
+            # Check if demo tenant already exists by subdomain
+            existing_tenant = await session.scalar(
+                select(Tenant).where(Tenant.subdomain == "demo")
+            )
             if existing_tenant:
                 print("ℹ️  Sample data creation skipped: Demo tenant already exists")
                 return
