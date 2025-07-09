@@ -14,6 +14,11 @@ services:
       - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - voice_agent_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis Cache
   redis:
@@ -25,6 +30,11 @@ services:
       - redis_data:/data
     networks:
       - voice_agent_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Backend API
   backend:
@@ -56,11 +66,19 @@ services:
     #   - ./backend:/app
     #   - /app/__pycache__
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - voice_agent_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Frontend React App
   frontend:
@@ -78,10 +96,17 @@ services:
     #   - ./frontend:/app
     #   - /app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - voice_agent_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # MinIO for S3-compatible storage (development)
   minio:
@@ -98,6 +123,11 @@ services:
     command: server /data --console-address ":9001"
     networks:
       - voice_agent_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Nginx Reverse Proxy
   nginx:
@@ -108,10 +138,13 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - voice_agent_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
