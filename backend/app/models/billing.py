@@ -10,11 +10,11 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer, JSON, Numeric, Date
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.core.types import GUID
 
 
 class BillingStatus(enum.Enum):
@@ -53,8 +53,8 @@ class BillingRecord(Base):
     __tablename__ = "billing_records"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
     
     # Billing identification
     invoice_number = Column(String(100), nullable=False, unique=True, index=True)
@@ -154,8 +154,8 @@ class UsageMetric(Base):
     __tablename__ = "usage_metrics"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
     
     # Metric identification
     metric_type = Column(Enum(UsageType), nullable=False, index=True)
@@ -199,7 +199,7 @@ class UsageMetric(Base):
     # Billing status
     is_billable = Column(Boolean, default=True, nullable=False)
     is_billed = Column(Boolean, default=False, nullable=False)
-    billing_record_id = Column(UUID(as_uuid=True), ForeignKey("billing_records.id"), nullable=True)
+    billing_record_id = Column(GUID(), ForeignKey("billing_records.id"), nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

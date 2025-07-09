@@ -22,6 +22,9 @@ export default function HomePage() {
           <Link className="text-sm font-medium hover:underline underline-offset-4" href="/login">
             Login
           </Link>
+          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/register">
+            Register
+          </Link>
         </nav>
       </header>
 
