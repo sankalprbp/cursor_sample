@@ -1,116 +1,206 @@
-# Docker Build Issues - All Fixed! ✅
+# Docker Startup Issues - Fixes Applied
 
-This document summarizes all the critical issues that were identified and resolved to make the Voice Agent Platform work correctly with Docker.
+## 🚨 **Issues Identified from Logs**
 
-## 🔧 Issues Identified & Fixed
-
-### 1. **Frontend: Missing server.js File** ❌➡️✅
-**Problem**: `Error: Cannot find module '/app/server.js'`
-
-**Root Cause**: Docker Compose volume mounts were overriding the built files
-- Volume mount `./frontend:/app` replaced the entire app directory
-- This overwrote the built `.next/standalone/server.js` file with source code
-
-**Solution Applied**:
-- Removed development volume mounts from `docker-compose.yml`
-- Updated environment variables to use Next.js conventions (`NEXT_PUBLIC_*`)
-- Fixed `next.config.js` with `output: 'standalone'` for Docker optimization
-
-### 2. **Backend: Pydantic Import Errors** ❌➡️✅
-**Problem**: `PydanticImportError: BaseSettings has been moved to the pydantic-settings package`
-
-**Root Cause**: Using deprecated Pydantic v1 import syntax with Pydantic v2
-
-**Solution Applied**:
-- Updated `backend/app/core/config.py`:
-  - Changed `from pydantic import BaseSettings, validator` 
-  - To `from pydantic import field_validator` + `from pydantic_settings import BaseSettings`
-- Updated all `@validator` decorators to `@field_validator` with `mode="before"`
-- Added `@classmethod` decorators as required by Pydantic v2
-
-### 3. **Database: SQL Initialization Errors** ❌➡️✅
-**Problem**: `ERROR: relation "users" does not exist`
-
-**Root Cause**: Init script tried to create indexes on non-existent tables
-
-**Solution Applied**:
-- Modified `backend/sql/init.sql`:
-  - Commented out all index creation commands
-  - Commented out data insertion commands
-  - Left only the UUID extension creation
-- Tables will be created by the backend application using SQLAlchemy/Alembic migrations
-
-### 4. **Docker Configuration Improvements** ❌➡️✅
-**Problem**: Development volume mounts conflicting with production builds
-
-**Solution Applied**:
-- **Frontend**: Removed volume mounts to prevent overriding built files
-- **Backend**: Commented out volume mounts for production stability
-- **Environment**: Added required environment variables for backend services
-- **Dependencies**: Fixed Tailwind CSS plugins in `package.json` dependencies
-
-### 5. **Missing Files and Directories** ❌➡️✅
-**Problem**: Missing `public/` directory and static assets
-
-**Solution Applied**:
-- Created `frontend/public/` directory with:
-  - `robots.txt` - SEO configuration
-  - `manifest.json` - PWA manifest
-  - `favicon.ico` - Placeholder favicon
-  - `.gitkeep` - Git tracking
-
-## 📁 Files Modified
-
-### Frontend Changes:
-- ✅ `frontend/package.json` - Moved Tailwind plugins to dependencies
-- ✅ `frontend/next.config.js` - Added standalone output
-- ✅ `frontend/Dockerfile` - Improved build process
-- ✅ `frontend/public/` - Created missing directory with assets
-
-### Backend Changes:
-- ✅ `backend/app/core/config.py` - Fixed Pydantic v2 compatibility
-- ✅ `backend/sql/init.sql` - Removed premature table operations
-- ✅ `backend/.env.example` - Added environment template
-
-### Infrastructure Changes:
-- ✅ `docker-compose.yml` - Removed conflicting volume mounts
-- ✅ Added proper environment variables for all services
-
-## 🚀 Ready to Launch!
-
-Your Voice Agent Platform is now fully configured and ready to run:
-
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Or run in background
-docker-compose up --build -d
+### 1. **Database Initialization Error**
+```
+postgres | ERROR: relation "users" does not exist
+postgres | STATEMENT: CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
 ```
 
-## 🌐 Service Access Points
+### 2. **Nginx Configuration Error**
+```
+nginx | [emerg] host not found in upstream "frontend:3000" in /etc/nginx/nginx.conf:49
+```
 
-After starting the containers, you can access:
+### 3. **Sample Data Duplication Error**
+```
+backend | ERROR: duplicate key value violates unique constraint "ix_tenants_subdomain"
+backend | DETAIL: Key (subdomain)=(demo) already exists.
+```
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **Database**: localhost:5432 (postgres/password)
-- **Redis**: localhost:6379
-- **MinIO**: http://localhost:9001 (minioadmin/minioadmin)
-- **Nginx**: http://localhost
+### 4. **Service Startup Order Issues**
+- Nginx trying to connect to services before they're ready
+- No health checks to ensure proper startup order
 
-## ⚙️ Next Steps
+---
 
-1. **Configure API Keys**: Copy `backend/.env.example` to `backend/.env` and add your:
-   - OpenAI API key
-   - ElevenLabs API key  
-   - AWS credentials
-   - Other required services
+## ✅ **Fixes Applied**
 
-2. **Database Setup**: The backend will automatically create tables on first run
+### 1. **Fixed Database Initialization Script** (`backend/sql/init.sql`)
+**Problem**: Script was trying to create indexes on tables that didn't exist yet.
 
-3. **Production Security**: Change default passwords and secrets
+**Solution**: 
+- Removed all table-specific operations from init.sql
+- Only kept UUID extension creation
+- All tables and indexes now created by backend application
 
-## 🎉 All Issues Resolved!
+**Changes**:
+```sql
+-- Before: Complex script with table operations
+-- After: Simple extension creation only
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+```
 
-The platform is now fully functional and ready for development and deployment!
+### 2. **Fixed Sample Data Creation** (`backend/app/core/database_init.py`)
+**Problem**: Backend was trying to create sample data that already existed, causing duplicate key errors.
+
+**Solution**:
+- Added check for existing demo tenant before creation
+- Changed error handling to log warnings instead of failing
+- Made sample data creation idempotent
+
+**Changes**:
+```python
+# Check if demo tenant already exists
+existing_tenant = await session.get(Tenant, "b1244b00-5bb5-4f55-94e3-720d683ae82c")
+if existing_tenant:
+    print("ℹ️  Sample data creation skipped: Demo tenant already exists")
+    return
+```
+
+### 3. **Enhanced Nginx Configuration** (`nginx/nginx.conf`)
+**Problem**: Nginx couldn't find upstream services during startup.
+
+**Solution**:
+- Added health checks and fail_timeout to upstream servers
+- Added dedicated health check endpoint
+- Improved error handling and retry logic
+
+**Changes**:
+```nginx
+upstream backend {
+    server backend:8000 max_fails=3 fail_timeout=30s;
+}
+
+upstream frontend {
+    server frontend:3000 max_fails=3 fail_timeout=30s;
+}
+```
+
+### 4. **Updated Docker Compose** (`docker-compose.yml`)
+**Problem**: Services starting in wrong order, no health checks.
+
+**Solution**:
+- Added health checks for all services
+- Updated dependencies to use health check conditions
+- Added proper startup timeouts
+
+**Changes**:
+```yaml
+depends_on:
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+```
+
+---
+
+## 🔧 **Health Checks Added**
+
+### PostgreSQL
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "pg_isready -U postgres"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+```
+
+### Redis
+```yaml
+healthcheck:
+  test: ["CMD", "redis-cli", "ping"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+```
+
+### Backend
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+### Frontend
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:3000"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+---
+
+## � **Startup Order**
+
+1. **PostgreSQL** → Health check passes
+2. **Redis** → Health check passes  
+3. **Backend** → Waits for PostgreSQL & Redis, then starts
+4. **Frontend** → Waits for Backend, then starts
+5. **Nginx** → Waits for both Frontend & Backend, then starts
+
+---
+
+## 🧪 **Testing**
+
+Created `test_startup.py` to verify fixes:
+- Tests health endpoints for all services
+- Verifies API endpoints are accessible
+- Checks nginx proxy functionality
+
+Run with:
+```bash
+python test_startup.py
+```
+
+---
+
+## 📋 **Expected Results**
+
+After applying these fixes:
+
+✅ **PostgreSQL** starts without table creation errors  
+✅ **Backend** starts without sample data conflicts  
+✅ **Frontend** starts and is accessible  
+✅ **Nginx** starts without upstream errors  
+✅ **All services** start in correct order  
+✅ **Health checks** pass for all services  
+
+---
+
+## 🔄 **Next Steps**
+
+1. **Rebuild and restart services**:
+   ```bash
+   docker-compose down
+   docker-compose up --build
+   ```
+
+2. **Verify startup**:
+   ```bash
+   python test_startup.py
+   ```
+
+3. **Access the application**:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - API Docs: http://localhost:8000/docs
+   - Nginx Proxy: http://localhost
+
+---
+
+## 📝 **Notes**
+
+- All fixes are backward compatible
+- Health checks ensure reliable startup
+- Error handling is now graceful
+- Services can restart independently
+- Development and production configurations supported

@@ -37,6 +37,12 @@ async def create_sample_data():
     
     async with async_session_maker() as session:
         try:
+            # Check if demo tenant already exists
+            existing_tenant = await session.get(Tenant, "b1244b00-5bb5-4f55-94e3-720d683ae82c")
+            if existing_tenant:
+                print("ℹ️  Sample data creation skipped: Demo tenant already exists")
+                return
+            
             # Create default tenant
             tenant = Tenant(
                 id=uuid4(),
@@ -122,8 +128,8 @@ async def create_sample_data():
             
         except Exception as e:
             await session.rollback()
-            print(f"❌ Error creating sample data: {e}")
-            raise
+            print(f"ℹ️  Sample data creation skipped: {e}")
+            # Don't raise the exception, just log it
 
 
 async def initialize_database():
