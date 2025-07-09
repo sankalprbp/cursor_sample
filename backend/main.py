@@ -16,6 +16,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from sqlalchemy import text
 from app.core.database_init import create_tables, create_sample_data
 from app.core.redis_client import redis_client
 from app.api.v1.router import api_router
@@ -142,7 +143,7 @@ async def health_check():
     try:
         # Check database connection
         async with engine.begin() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         
         # Check Redis connection
         await redis_client.ping()
