@@ -9,12 +9,23 @@ from decimal import Decimal
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, Integer, Text, JSON, Numeric, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    Enum,
+    Integer,
+    Text,
+    JSON,
+    Numeric,
+    ForeignKey,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.core.types import GUID
 
 
 class TenantStatus(enum.Enum):
@@ -39,7 +50,7 @@ class Tenant(Base):
     __tablename__ = "tenants"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
     name = Column(String(255), nullable=False, index=True)
     subdomain = Column(String(100), unique=True, nullable=True, index=True)
     domain = Column(String(255), nullable=True)
@@ -159,8 +170,8 @@ class TenantSubscription(Base):
     __tablename__ = "tenant_subscriptions"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, unique=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, unique=True)
     
     # Subscription details
     plan = Column(Enum(SubscriptionPlan), default=SubscriptionPlan.FREE, nullable=False)

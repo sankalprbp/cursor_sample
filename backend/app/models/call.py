@@ -10,11 +10,11 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Text, Integer, JSON, Numeric, Float
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+from app.core.types import GUID
 
 
 class CallStatus(enum.Enum):
@@ -61,9 +61,9 @@ class Call(Base):
     __tablename__ = "calls"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
     
     # Call identification
     call_sid = Column(String(255), nullable=True, unique=True, index=True)  # Twilio call SID
@@ -178,8 +178,8 @@ class CallTranscript(Base):
     __tablename__ = "call_transcripts"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    call_id = Column(UUID(as_uuid=True), ForeignKey("calls.id"), nullable=False, unique=True, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    call_id = Column(GUID(), ForeignKey("calls.id"), nullable=False, unique=True, index=True)
     
     # Transcript content
     full_transcript = Column(Text, nullable=True)
@@ -230,8 +230,8 @@ class CallAnalytics(Base):
     __tablename__ = "call_analytics"
     
     # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    call_id = Column(UUID(as_uuid=True), ForeignKey("calls.id"), nullable=False, unique=True, index=True)
+    id = Column(GUID(), primary_key=True, default=uuid4, index=True)
+    call_id = Column(GUID(), ForeignKey("calls.id"), nullable=False, unique=True, index=True)
     
     # Sentiment analysis
     overall_sentiment = Column(Enum(SentimentType), nullable=True)
