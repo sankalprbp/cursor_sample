@@ -78,6 +78,7 @@ docker-compose up --build
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - Admin Dashboard: http://localhost:3000/admin
+- Login with the sample credentials in `PART1_COMPLETE.md`
 
 ## 📋 API Documentation
 
