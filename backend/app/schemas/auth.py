@@ -74,3 +74,31 @@ class ChangePassword(BaseModel):
     """Change password request"""
     current_password: str
     new_password: str = Field(..., min_length=8)
+
+
+class EmailVerification(BaseModel):
+    """Email verification request"""
+    token: str
+
+
+class ResendVerification(BaseModel):
+    """Resend verification email request"""
+    email: EmailStr
+
+
+class LogoutRequest(BaseModel):
+    """Logout request (for token blacklisting)"""
+    token: Optional[str] = None
+
+
+class AuthResponse(BaseModel):
+    """Generic auth response"""
+    message: str
+    success: bool = True
+
+
+class UserRegistrationResponse(BaseModel):
+    """User registration response with additional info"""
+    user: UserResponse
+    message: str
+    verification_required: bool = True

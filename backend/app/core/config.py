@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     ALLOWED_HOSTS: str = "*"
     
+    # Email Configuration
+    SMTP_SERVER: str = "localhost"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    FROM_EMAIL: str = "noreply@voiceagent.com"
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     # File Upload
     MAX_FILE_SIZE_MB: int = 50
     ALLOWED_FILE_TYPES: str = "pdf,txt,docx,md"
