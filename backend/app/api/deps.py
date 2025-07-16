@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db_session
+from app.core.database import get_db as get_database_session
 from app.models.user import User, UserRole
 from app.models.tenant import Tenant
 from app.services.auth import AuthService
@@ -25,7 +25,7 @@ security = HTTPBearer()
 
 async def get_db() -> AsyncSession:
     """Get database session"""
-    async for session in get_db_session():
+    async for session in get_database_session():
         yield session
 
 
@@ -58,8 +58,8 @@ async def get_current_user(
         raise credentials_exception
     
     # Get user from database
-    user_service = UserService(db)
-    user = await user_service.get_by_id(UUID(user_id))
+    user_service = UserService()
+    user = await user_service.get_user(db, UUID(user_id))
     
     if user is None:
         raise credentials_exception
@@ -96,8 +96,8 @@ async def get_current_tenant(
             detail="User is not associated with any tenant"
         )
     
-    tenant_service = TenantService(db)
-    tenant = await tenant_service.get_by_id(current_user.tenant_id)
+    tenant_service = TenantService()
+    tenant = await tenant_service.get_tenant(db, current_user.tenant_id)
     
     if not tenant:
         raise HTTPException(
