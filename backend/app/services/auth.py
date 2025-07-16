@@ -3,6 +3,8 @@ Authentication Service
 Handles user authentication, JWT tokens, and session management
 """
 
+import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 from fastapi import HTTPException, status
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.redis_client import redis_client
 from app.models.user import User, UserRole
 from app.schemas.auth import TokenData, UserCreate, UserLogin
 
@@ -29,6 +32,7 @@ class AuthService:
     
     def __init__(self):
         self.pwd_context = pwd_context
+        self.redis = redis_client
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a plain password against hashed password"""
@@ -37,6 +41,14 @@ class AuthService:
     def get_password_hash(self, password: str) -> str:
         """Generate password hash"""
         return self.pwd_context.hash(password)
+    
+    def generate_password_reset_token(self) -> str:
+        """Generate a secure password reset token"""
+        return secrets.token_urlsafe(32)
+    
+    def generate_email_verification_token(self) -> str:
+        """Generate a secure email verification token"""
+        return secrets.token_urlsafe(32)
     
     async def authenticate_user(
         self, 
@@ -56,6 +68,10 @@ class AuthService:
         if not self.verify_password(password, user.hashed_password):
             return None
             
+        # Update last login
+        user.last_login = datetime.now(timezone.utc)
+        await db.commit()
+            
         return user
     
     def create_access_token(
@@ -73,7 +89,14 @@ class AuthService:
                 minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
             )
         
-        to_encode.update({"exp": expire})
+        # Add unique token ID for blacklisting
+        jti = str(uuid.uuid4())
+        to_encode.update({
+            "exp": expire,
+            "jti": jti,
+            "type": "access"
+        })
+        
         encoded_jwt = jwt.encode(
             to_encode, 
             settings.SECRET_KEY, 
@@ -96,13 +119,34 @@ class AuthService:
                 days=settings.REFRESH_TOKEN_EXPIRE_DAYS
             )
         
-        to_encode.update({"exp": expire, "type": "refresh"})
+        # Add unique token ID for blacklisting
+        jti = str(uuid.uuid4())
+        to_encode.update({
+            "exp": expire, 
+            "jti": jti,
+            "type": "refresh"
+        })
+        
         encoded_jwt = jwt.encode(
             to_encode, 
             settings.SECRET_KEY, 
             algorithm=settings.ALGORITHM
         )
         return encoded_jwt
+    
+    async def is_token_blacklisted(self, jti: str) -> bool:
+        """Check if token is blacklisted"""
+        blacklist_key = f"blacklist:token:{jti}"
+        return await self.redis.exists(blacklist_key)
+    
+    async def blacklist_token(self, jti: str, exp: datetime) -> bool:
+        """Add token to blacklist"""
+        blacklist_key = f"blacklist:token:{jti}"
+        # Calculate TTL until token expires
+        ttl = int((exp - datetime.now(timezone.utc)).total_seconds())
+        if ttl > 0:
+            return await self.redis.set(blacklist_key, "true", expire=ttl)
+        return True
     
     async def verify_token(self, token: str) -> Optional[TokenData]:
         """Verify and decode JWT token"""
@@ -112,8 +156,15 @@ class AuthService:
                 settings.SECRET_KEY, 
                 algorithms=[settings.ALGORITHM]
             )
+            
             user_id: str = payload.get("sub")
-            if user_id is None:
+            jti: str = payload.get("jti")
+            
+            if user_id is None or jti is None:
+                return None
+            
+            # Check if token is blacklisted
+            if await self.is_token_blacklisted(jti):
                 return None
             
             token_data = TokenData(user_id=user_id)
@@ -155,11 +206,33 @@ class AuthService:
             
         return user
     
+    async def logout_user(self, token: str) -> bool:
+        """Logout user by blacklisting token"""
+        try:
+            payload = jwt.decode(
+                token, 
+                settings.SECRET_KEY, 
+                algorithms=[settings.ALGORITHM]
+            )
+            
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            
+            if jti and exp:
+                exp_datetime = datetime.fromtimestamp(exp, tz=timezone.utc)
+                return await self.blacklist_token(jti, exp_datetime)
+                
+        except JWTError:
+            return False
+        
+        return False
+    
     async def create_user(
         self, 
         db: AsyncSession, 
         user_create: UserCreate,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
+        send_verification_email: bool = True
     ) -> User:
         """Create a new user"""
         # Check if user already exists
@@ -176,6 +249,10 @@ class AuthService:
         # Hash password
         hashed_password = self.get_password_hash(user_create.password)
         
+        # Generate email verification token
+        email_verification_token = self.generate_email_verification_token()
+        email_verification_expires = datetime.now(timezone.utc) + timedelta(hours=24)
+        
         # Create user
         user = User(
             email=user_create.email,
@@ -186,14 +263,150 @@ class AuthService:
             role=UserRole.TENANT_USER,  # Default role
             tenant_id=tenant_id,
             is_active=True,
-            is_verified=False
+            is_verified=False,
+            email_verification_token=email_verification_token,
+            email_verification_expires=email_verification_expires
         )
         
         db.add(user)
         await db.commit()
         await db.refresh(user)
         
+        # Store verification token in Redis for quick lookup
+        if send_verification_email:
+            verification_key = f"verification:email:{email_verification_token}"
+            await self.redis.set(
+                verification_key, 
+                str(user.id), 
+                expire=24 * 60 * 60  # 24 hours
+            )
+            
+            # Send verification email
+            from app.services.email import email_service
+            await email_service.send_verification_email(
+                user.email, 
+                email_verification_token, 
+                user.username or user.first_name
+            )
+        
         return user
+    
+    async def verify_email(self, db: AsyncSession, token: str) -> bool:
+        """Verify user email with token"""
+        # Check token in Redis first
+        verification_key = f"verification:email:{token}"
+        user_id = await self.redis.get(verification_key)
+        
+        if not user_id:
+            return False
+        
+        # Get user from database
+        stmt = select(User).where(
+            User.id == user_id,
+            User.email_verification_token == token,
+            User.email_verification_expires > datetime.now(timezone.utc)
+        )
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return False
+        
+        # Mark user as verified
+        user.is_verified = True
+        user.email_verification_token = None
+        user.email_verification_expires = None
+        
+        await db.commit()
+        
+        # Remove token from Redis
+        await self.redis.delete(verification_key)
+        
+        # Send welcome email
+        from app.services.email import email_service
+        await email_service.send_welcome_email(
+            user.email, 
+            user.username or user.first_name
+        )
+        
+        return True
+    
+    async def initiate_password_reset(self, db: AsyncSession, email: str) -> bool:
+        """Initiate password reset process"""
+        # Get user by email
+        stmt = select(User).where(User.email == email, User.is_active == True)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            # Don't reveal if email exists or not
+            return True
+        
+        # Generate reset token
+        reset_token = self.generate_password_reset_token()
+        reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)  # 1 hour expiry
+        
+        # Update user with reset token
+        user.password_reset_token = reset_token
+        user.password_reset_expires = reset_expires
+        
+        await db.commit()
+        
+        # Store reset token in Redis for quick lookup
+        reset_key = f"reset:password:{reset_token}"
+        await self.redis.set(
+            reset_key, 
+            str(user.id), 
+            expire=60 * 60  # 1 hour
+        )
+        
+        # Send password reset email
+        from app.services.email import email_service
+        await email_service.send_password_reset_email(
+            user.email, 
+            reset_token, 
+            user.username or user.first_name
+        )
+        
+        return True
+    
+    async def reset_password(
+        self, 
+        db: AsyncSession, 
+        token: str, 
+        new_password: str
+    ) -> bool:
+        """Reset user password with token"""
+        # Check token in Redis first
+        reset_key = f"reset:password:{token}"
+        user_id = await self.redis.get(reset_key)
+        
+        if not user_id:
+            return False
+        
+        # Get user from database
+        stmt = select(User).where(
+            User.id == user_id,
+            User.password_reset_token == token,
+            User.password_reset_expires > datetime.now(timezone.utc)
+        )
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return False
+        
+        # Update password
+        user.hashed_password = self.get_password_hash(new_password)
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        
+        await db.commit()
+        
+        # Remove token from Redis
+        await self.redis.delete(reset_key)
+        
+        return True
     
     def check_permissions(self, user: User, required_role: UserRole) -> bool:
         """Check if user has required role/permissions"""
