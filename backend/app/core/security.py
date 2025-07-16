@@ -9,6 +9,7 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.models.user import User, UserRole
+from app.api.deps import get_db
 
 
 class Permission:
@@ -214,7 +215,6 @@ def require_super_admin_dependency():
         db = Depends(get_db)
     ) -> User:
         from app.services.auth import auth_service
-        from app.api.deps import get_db
         user = await auth_service.get_current_user(db, credentials)
         
         if user.role != UserRole.SUPER_ADMIN:
@@ -235,7 +235,6 @@ def require_admin_dependency():
         db = Depends(get_db)
     ) -> User:
         from app.services.auth import auth_service
-        from app.api.deps import get_db
         user = await auth_service.get_current_user(db, credentials)
         
         if user.role not in [UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN]:
@@ -256,7 +255,6 @@ def require_tenant_admin_dependency():
         db = Depends(get_db)
     ) -> User:
         from app.services.auth import auth_service
-        from app.api.deps import get_db
         user = await auth_service.get_current_user(db, credentials)
         
         if user.role == UserRole.SUPER_ADMIN:
@@ -280,7 +278,6 @@ def require_verified_user_dependency():
         db = Depends(get_db)
     ) -> User:
         from app.services.auth import auth_service
-        from app.api.deps import get_db
         user = await auth_service.get_current_user(db, credentials)
         
         if not user.is_verified:
