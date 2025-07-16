@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.api.deps import get_db
 from app.core.config import settings
-from app.services.auth import auth_service, security
+from app.services.auth import auth_service
+from app.api.deps import security
 from app.schemas.auth import (
     UserLogin, 
     UserCreate, 
