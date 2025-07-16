@@ -4,29 +4,6 @@ import Link from 'next/link'
 export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <header className="px-4 lg:px-6 h-14 flex items-center border-b">
-        <Link className="flex items-center justify-center" href="/">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">VA</span>
-          </div>
-          <span className="ml-2 text-lg font-semibold">Voice Agent Platform</span>
-        </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/dashboard">
-            Dashboard
-          </Link>
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/docs">
-            Documentation
-          </Link>
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/login">
-            Login
-          </Link>
-          <Link className="text-sm font-medium hover:underline underline-offset-4" href="/register">
-            Register
-          </Link>
-        </nav>
-      </header>
 
       {/* Main Content */}
       <main className="flex-1">
