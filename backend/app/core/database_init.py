@@ -135,7 +135,7 @@ async def create_sample_data():
             )
             session.add(metric)
 
-
+            
             # Sample call
             from app.models.call import Call, CallStatus, CallDirection
             call = Call(
