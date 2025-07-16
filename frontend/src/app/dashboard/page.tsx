@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Phone, PhoneCall, MessageSquare, BarChart3, Settings, Upload, FileText, Users, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchCalls } from '@/services/api';
 
 interface Call {
   id: string;
@@ -41,49 +42,26 @@ export default function Dashboard() {
     }
   }, [user, router]);
 
-  // Simulated data for demo
+  // Load calls from API
   useEffect(() => {
-    // Simulate loading calls
-    const mockCalls: Call[] = [
-      {
-        id: '1',
-        caller_number: '+1-555-0123',
-        status: 'completed',
-        started_at: new Date(Date.now() - 3600000).toISOString(),
-        ended_at: new Date(Date.now() - 3300000).toISOString(),
-        duration_seconds: 300,
-        summary: 'Customer inquiry about pricing. Provided detailed information about our Pro plan.'
-      },
-      {
-        id: '2',
-        caller_number: '+1-555-0456',
-        status: 'completed',
-        started_at: new Date(Date.now() - 7200000).toISOString(),
-        ended_at: new Date(Date.now() - 6900000).toISOString(),
-        duration_seconds: 180,
-        summary: 'Technical support request. Helped customer reset their password.'
-      },
-      {
-        id: '3',
-        caller_number: '+1-555-0789',
-        status: 'active',
-        started_at: new Date(Date.now() - 600000).toISOString(),
-      }
-    ];
-
-    setCalls(mockCalls);
-    
-    // Calculate stats
-    const completedCalls = mockCalls.filter(c => c.status === 'completed');
-    const avgDuration = completedCalls.reduce((sum, call) => sum + (call.duration_seconds || 0), 0) / completedCalls.length;
-    
-    setStats({
-      totalCalls: mockCalls.length,
-      activeCalls: mockCalls.filter(c => c.status === 'active').length,
-      averageDuration: avgDuration || 0,
-      successRate: completedCalls.length / mockCalls.length * 100
-    });
-  }, []);
+    if (!user) return;
+    fetchCalls()
+      .then((data) => {
+        setCalls(data);
+        const completed = data.filter((c: any) => c.status === 'completed');
+        const avg =
+          completed.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) /
+          (completed.length || 1);
+        setStats({
+          totalCalls: data.length,
+          activeCalls: data.filter((c: any) => c.status === 'active').length,
+          averageDuration: avg,
+          successRate: completed.length / (data.length || 1) * 100,
+        });
+      })
+      .catch(() => {})
+      .finally(() => {});
+  }, [user]);
 
   const handleStartTestCall = async () => {
     setIsStartingCall(true);
