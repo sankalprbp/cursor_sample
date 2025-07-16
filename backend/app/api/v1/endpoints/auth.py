@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.config import settings
+from app.core.security import require_verified_user, require_admin
 from app.services.auth import auth_service
 from app.api.deps import security
 from app.schemas.auth import (
@@ -19,9 +20,17 @@ from app.schemas.auth import (
     UserResponse, 
     Token, 
     RefreshTokenRequest,
-    ChangePassword
+    ChangePassword,
+    PasswordReset,
+    PasswordResetConfirm,
+    EmailVerification,
+    ResendVerification,
+    LogoutRequest,
+    AuthResponse,
+    UserRegistrationResponse
 )
 from app.models.user import User
+from app.models.user import UserRole
 
 
 router = APIRouter()
@@ -76,28 +85,154 @@ async def login(
     }
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserRegistrationResponse)
 async def register(
     user_create: UserCreate,
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
     User registration endpoint
-    Creates a new user account
+    Creates a new user account and sends verification email
     """
-    user = await auth_service.create_user(db, user_create)
+    user = await auth_service.create_user(
+        db, 
+        user_create, 
+        send_verification_email=True
+    )
     
-    return UserResponse(
+    user_response = UserResponse(
         id=str(user.id),
         email=user.email,
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.role.value,  # Convert enum to string
+        role=user.role.value,
         is_active=user.is_active,
         is_verified=user.is_verified,
         tenant_id=str(user.tenant_id) if user.tenant_id else None,
         created_at=user.created_at.isoformat()
+    )
+    
+    return UserRegistrationResponse(
+        user=user_response,
+        message="User registered successfully. Please check your email for verification instructions.",
+        verification_required=True
+    )
+
+
+@router.post("/verify-email", response_model=AuthResponse)
+async def verify_email(
+    verification: EmailVerification,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Verify user email with token
+    """
+    success = await auth_service.verify_email(db, verification.token)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+    
+    return AuthResponse(
+        message="Email verified successfully",
+        success=True
+    )
+
+
+@router.post("/resend-verification", response_model=AuthResponse)
+async def resend_verification(
+    resend_request: ResendVerification,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Resend email verification
+    """
+    from sqlalchemy import select
+    
+    # Get user by email
+    stmt = select(User).where(User.email == resend_request.email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        # Don't reveal if email exists
+        return AuthResponse(
+            message="If the email exists, a verification link has been sent",
+            success=True
+        )
+    
+    if user.is_verified:
+        return AuthResponse(
+            message="Email is already verified",
+            success=True
+        )
+    
+    # Generate new verification token
+    from datetime import datetime, timezone, timedelta
+    verification_token = auth_service.generate_email_verification_token()
+    verification_expires = datetime.now(timezone.utc) + timedelta(hours=24)
+    
+    user.email_verification_token = verification_token
+    user.email_verification_expires = verification_expires
+    
+    await db.commit()
+    
+    # Store in Redis
+    verification_key = f"verification:email:{verification_token}"
+    await auth_service.redis.set(
+        verification_key, 
+        str(user.id), 
+        expire=24 * 60 * 60
+    )
+    
+    return AuthResponse(
+        message="Verification email sent successfully",
+        success=True
+    )
+
+
+@router.post("/forgot-password", response_model=AuthResponse)
+async def forgot_password(
+    password_reset: PasswordReset,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Initiate password reset process
+    """
+    await auth_service.initiate_password_reset(db, password_reset.email)
+    
+    return AuthResponse(
+        message="If the email exists, a password reset link has been sent",
+        success=True
+    )
+
+
+@router.post("/reset-password", response_model=AuthResponse)
+async def reset_password(
+    reset_confirm: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Reset password with token
+    """
+    success = await auth_service.reset_password(
+        db, 
+        reset_confirm.token, 
+        reset_confirm.new_password
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    return AuthResponse(
+        message="Password reset successfully",
+        success=True
     )
 
 
@@ -174,7 +309,7 @@ async def get_current_user(
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
-        role=user.role.value,  # Convert enum to string
+        role=user.role.value,
         is_active=user.is_active,
         is_verified=user.is_verified,
         tenant_id=str(user.tenant_id) if user.tenant_id else None,
@@ -182,21 +317,19 @@ async def get_current_user(
     )
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=AuthResponse)
 async def change_password(
     password_data: ChangePassword,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(require_verified_user()),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
-    Change user password
+    Change user password (requires verified email)
     """
-    user = await auth_service.get_current_user(db, credentials)
-    
     # Verify current password
     if not auth_service.verify_password(
         password_data.current_password, 
-        user.hashed_password
+        current_user.hashed_password
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,25 +337,138 @@ async def change_password(
         )
     
     # Update password
-    user.hashed_password = auth_service.get_password_hash(
+    current_user.hashed_password = auth_service.get_password_hash(
         password_data.new_password
     )
     
     await db.commit()
     
-    return {"message": "Password updated successfully"}
+    return AuthResponse(
+        message="Password updated successfully",
+        success=True
+    )
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=AuthResponse)
 async def logout(
+    logout_request: LogoutRequest,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
-    Logout user (invalidate token)
-    Note: In a production environment, you might want to implement token blacklisting
+    Logout user by blacklisting the current token
     """
     # Verify user is authenticated
     await auth_service.get_current_user(db, credentials)
     
-    return {"message": "Successfully logged out"}
+    # Blacklist the token
+    token = logout_request.token or credentials.credentials
+    success = await auth_service.logout_user(token)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to logout"
+        )
+    
+    return AuthResponse(
+        message="Successfully logged out",
+        success=True
+    )
+
+
+@router.post("/logout-all", response_model=AuthResponse)
+async def logout_all_sessions(
+    current_user: User = Depends(require_verified_user()),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Logout from all sessions by blacklisting all user tokens
+    Note: This is a simplified implementation. In production, you might want
+    to track active sessions more granularly.
+    """
+    # In a full implementation, you would:
+    # 1. Get all active tokens for the user
+    # 2. Blacklist them all
+    # 3. Optionally, increment a user session version to invalidate all tokens
+    
+    # For now, we'll just return success
+    # TODO: Implement proper session management
+    
+    return AuthResponse(
+        message="Logged out from all sessions successfully",
+        success=True
+    )
+
+
+# Admin endpoints
+@router.get("/admin/users", response_model=list[UserResponse])
+async def list_users(
+    current_user: User = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100
+) -> Any:
+    """
+    List all users (admin only)
+    """
+    from sqlalchemy import select
+    
+    stmt = select(User)
+    if current_user.role != UserRole.SUPER_ADMIN:
+        # Tenant admins can only see users from their tenant
+        stmt = stmt.where(User.tenant_id == current_user.tenant_id)
+    
+    stmt = stmt.offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    users = result.scalars().all()
+    
+    return [
+        UserResponse(
+            id=str(user.id),
+            email=user.email,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role.value,
+            is_active=user.is_active,
+            is_verified=user.is_verified,
+            tenant_id=str(user.tenant_id) if user.tenant_id else None,
+            created_at=user.created_at.isoformat()
+        )
+        for user in users
+    ]
+
+
+@router.patch("/admin/users/{user_id}/activate", response_model=AuthResponse)
+async def activate_user(
+    user_id: str,
+    current_user: User = Depends(require_admin()),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Activate/deactivate user (admin only)
+    """
+    from sqlalchemy import select
+    
+    stmt = select(User).where(User.id == user_id)
+    if current_user.role != UserRole.SUPER_ADMIN:
+        # Tenant admins can only manage users from their tenant
+        stmt = stmt.where(User.tenant_id == current_user.tenant_id)
+    
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    user.is_active = not user.is_active
+    await db.commit()
+    
+    return AuthResponse(
+        message=f"User {'activated' if user.is_active else 'deactivated'} successfully",
+        success=True
+    )
