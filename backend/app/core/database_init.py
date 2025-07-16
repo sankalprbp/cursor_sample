@@ -12,6 +12,7 @@ from uuid import uuid4
 from app.core.database import async_session_maker, Base, engine
 from app.models.user import User, UserRole
 from app.models.tenant import Tenant, TenantStatus, TenantSubscription, SubscriptionPlan
+from app.models.billing import UsageMetric, UsageType
 try:
     from app.services.auth import auth_service
 except ImportError:
@@ -120,6 +121,35 @@ async def create_sample_data():
                 is_verified=True
             )
             session.add(regular_user)
+
+            # Sample usage metric
+            metric = UsageMetric(
+                tenant_id=tenant.id,
+                metric_type=UsageType.CALLS,
+                metric_name="demo_calls",
+                date=datetime.now(timezone.utc).date(),
+                count=5,
+                unit_price_usd=0.10,
+                billing_unit="call",
+                cost_usd=0.50,
+            )
+            session.add(metric)
+
+            # Sample call
+            from app.models.call import Call, CallStatus, CallDirection
+            call = Call(
+                tenant_id=tenant.id,
+                user_id=regular_user.id,
+                session_id="demo-session",
+                direction=CallDirection.INBOUND,
+                status=CallStatus.COMPLETED,
+                caller_number="+15550123",
+                started_at=datetime.now(timezone.utc),
+                ended_at=datetime.now(timezone.utc),
+                duration_seconds=180,
+                summary="Demo call transcript summary",
+            )
+            session.add(call)
             
             await session.commit()
             
