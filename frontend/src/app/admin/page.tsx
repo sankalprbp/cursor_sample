@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -51,6 +52,11 @@ export default function AdminPage() {
           </tbody>
         </table>
       )}
+export default function AdminPage() {
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      <p>Administration tools coming soon.</p>
     </div>
   );
 }
