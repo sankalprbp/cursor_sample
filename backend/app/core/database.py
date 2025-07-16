@@ -65,4 +65,5 @@ async def create_tables():
 
 async def drop_tables():
     """Drop all database tables"""
-    async with engine.begin() as conn:        await conn.run_sync(Base.metadata.drop_all)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
