@@ -24,15 +24,14 @@ export default function AdminPage() {
     }
   }, [user]);
 
-
   if (!user) {
     return <div className="p-4">Loading...</div>;
   }
+  
   if (user.role !== 'tenant_admin' && user.role !== 'super_admin') {
     return <div className="p-4">Access denied</div>;
   }
-  if (!user) return <div className="p-4">Loading...</div>;
-  if (user.role !== 'tenant_admin' && user.role !== 'super_admin') return <div className="p-4">Access denied</div>;
+
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
@@ -58,12 +57,6 @@ export default function AdminPage() {
           </tbody>
         </table>
       )}
-
-export default function AdminPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-      <p>Administration tools coming soon.</p>
     </div>
   );
 }
