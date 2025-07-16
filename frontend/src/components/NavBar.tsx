@@ -14,6 +14,8 @@ export default function NavBar() {
         <Link className="text-sm font-medium hover:underline" href="/dashboard">Dashboard</Link>
         <Link className="text-sm font-medium hover:underline" href="/admin">Admin</Link>
         <Link className="text-sm font-medium hover:underline" href="/docs">Docs</Link>
+        {user && <Link className="text-sm font-medium hover:underline" href="/profile">Profile</Link>}
+        {user && <Link className="text-sm font-medium hover:underline" href="/settings">Settings</Link>}
         {user ? (
           <button className="text-sm font-medium" onClick={logout}>Logout</button>
         ) : (

@@ -134,6 +134,24 @@ async def create_sample_data():
                 cost_usd=0.50,
             )
             session.add(metric)
+
+
+            # Sample call
+            from app.models.call import Call, CallStatus, CallDirection
+            call = Call(
+                tenant_id=tenant.id,
+                user_id=regular_user.id,
+                session_id="demo-session",
+                direction=CallDirection.INBOUND,
+                status=CallStatus.COMPLETED,
+                caller_number="+15550123",
+                started_at=datetime.now(timezone.utc),
+                ended_at=datetime.now(timezone.utc),
+                duration_seconds=180,
+                summary="Demo call transcript summary",
+            )
+            session.add(call)
+
             
             await session.commit()
             

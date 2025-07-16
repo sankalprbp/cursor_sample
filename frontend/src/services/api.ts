@@ -68,3 +68,19 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Convenience API helpers
+export async function fetchCalls() {
+  const res = await api.get('/api/v1/calls');
+  return res.data.calls as Array<any>;
+}
+
+export async function fetchUsers() {
+  const res = await api.get('/api/v1/users');
+  return res.data.users as Array<any>;
+}
+
+export async function updateProfile(userId: string, data: any) {
+  const res = await api.put(`/api/v1/users/${userId}`, data);
+  return res.data;
+}

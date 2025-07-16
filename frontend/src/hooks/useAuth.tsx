@@ -6,12 +6,16 @@ interface User {
   id: string;
   email: string;
   username: string;
+  role?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, username: string, password: string) => Promise<boolean>;
+  updateProfile: (data: Partial<User>) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -55,6 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = async (data: Partial<User>) => {
+    if (!user) return false;
+    try {
+      const updated = await api.put(`/api/v1/users/${user.id}`, data);
+      setUser(updated.data);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -62,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register: registerUser, logout }}>
+    <AuthContext.Provider value={{ user, login, register: registerUser, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );
