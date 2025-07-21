@@ -202,7 +202,7 @@ async def get_optional_user(
         user_service = UserService(db)
         user = await user_service.get_by_id(UUID(user_id))
         return user if user and user.is_active else None
-    except Exception:
+    except (ValueError, Exception):
         return None
 
 
