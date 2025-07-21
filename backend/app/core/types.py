@@ -25,4 +25,6 @@ class GUID(TypeDecorator):
     def process_result_value(self, value, dialect):
         if value is None:
             return value
-        return uuid.UUID(value)
+        # asyncpg may return its own UUID type which doesn't behave like a
+        # string. Cast to ``str`` first so ``uuid.UUID`` can handle it.
+        return uuid.UUID(str(value))
