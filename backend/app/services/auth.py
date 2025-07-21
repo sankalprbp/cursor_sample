@@ -11,8 +11,21 @@ from fastapi import HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import bcrypt
+from types import SimpleNamespace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+# ---------------------------------------------------------------------------
+# Ensure compatibility between `passlib` and modern versions of `bcrypt`.
+# Newer `bcrypt` releases (>=4.0) removed the ``__about__`` module which
+# older versions of ``passlib`` expect when checking the backend version.
+# If missing, create a lightweight substitute so `passlib` doesn't emit
+# noisy warnings or stack traces when initializing.
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = SimpleNamespace(
+        __version__=getattr(bcrypt, "__version__", "")
+    )
 
 from app.core.config import settings
 from app.core.redis_client import redis_client
