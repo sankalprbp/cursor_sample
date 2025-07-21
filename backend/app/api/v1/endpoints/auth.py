@@ -321,7 +321,7 @@ async def get_current_user(
 @router.post("/change-password", response_model=AuthResponse)
 async def change_password(
     password_data: ChangePassword,
-    current_user: User = Depends(require_verified_user()),
+    current_user: User = Depends(require_verified_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
@@ -380,7 +380,7 @@ async def logout(
 
 @router.post("/logout-all", response_model=AuthResponse)
 async def logout_all_sessions(
-    current_user: User = Depends(require_verified_user()),
+    current_user: User = Depends(require_verified_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
@@ -414,7 +414,7 @@ async def logout_all_sessions(
 # Admin endpoints
 @router.get("/admin/users", response_model=list[UserResponse])
 async def list_users(
-    current_user: User = Depends(require_admin()),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100
@@ -453,7 +453,7 @@ async def list_users(
 @router.patch("/admin/users/{user_id}/activate", response_model=AuthResponse)
 async def activate_user(
     user_id: str,
-    current_user: User = Depends(require_admin()),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
