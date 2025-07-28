@@ -165,24 +165,29 @@ class AuthService:
         """Verify and decode JWT token"""
         try:
             payload = jwt.decode(
-                token, 
-                settings.SECRET_KEY, 
+                token,
+                settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM]
             )
-            
+
             user_id: str = payload.get("sub")
             jti: str = payload.get("jti")
-            
+
             if user_id is None or jti is None:
                 return None
-            
+
             # Check if token is blacklisted
             if await self.is_token_blacklisted(jti):
                 return None
-            
+
+            # Check if user requested logout from all sessions
+            logout_all_key = f"logout_all:{user_id}"
+            if await self.redis.exists(logout_all_key):
+                return None
+
             token_data = TokenData(user_id=user_id)
             return token_data
-            
+
         except JWTError:
             return None
     
@@ -223,8 +228,8 @@ class AuthService:
         """Logout user by blacklisting token"""
         try:
             payload = jwt.decode(
-                token, 
-                settings.SECRET_KEY, 
+                token,
+                settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM]
             )
             
@@ -234,11 +239,18 @@ class AuthService:
             if jti and exp:
                 exp_datetime = datetime.fromtimestamp(exp, tz=timezone.utc)
                 return await self.blacklist_token(jti, exp_datetime)
-                
+
         except JWTError:
             return False
-        
+
         return False
+
+    async def logout_all_sessions(self, user_id: str) -> bool:
+        """Logout user from all sessions by setting a logout flag"""
+        ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+        key = f"logout_all:{user_id}"
+        await self.redis.set(key, "true", expire=ttl)
+        return True
     
     async def create_user(
         self, 

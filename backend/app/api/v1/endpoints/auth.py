@@ -393,12 +393,9 @@ async def logout_all_sessions(
     # 2. Blacklist them all
     # 3. Optionally, increment a user session version to invalidate all tokens
     
-    # Implement basic session management by invalidating user tokens
-    # In a production system, you would maintain a token blacklist in Redis
+    # Implement basic session management by setting a logout-all flag in Redis
     try:
-        # For now, we'll invalidate by checking token validity and returning success
-        # In a full implementation, add tokens to a blacklist in Redis
-        pass
+        await auth_service.logout_all_sessions(str(current_user.id))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

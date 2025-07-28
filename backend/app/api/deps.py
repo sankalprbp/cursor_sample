@@ -8,14 +8,14 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db as get_database_session
 from app.models.user import User, UserRole
 from app.models.tenant import Tenant
-from app.services.auth import AuthService
+from app.services.auth import auth_service
 from app.services.user import UserService
 from app.services.tenant import TenantService
 
@@ -42,18 +42,10 @@ async def get_current_user(
     )
     
     try:
-        # Decode JWT token
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
-        )
-        
-        # Extract user ID from token
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        token_data = await auth_service.verify_token(credentials.credentials)
+        if not token_data:
             raise credentials_exception
-            
+        user_id = token_data.user_id
     except JWTError:
         raise credentials_exception
     
@@ -186,15 +178,10 @@ async def get_optional_user(
     token = authorization.split("Bearer ")[1]
     
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        token_data = await auth_service.verify_token(token)
+        if not token_data:
             return None
-            
+        user_id = token_data.user_id
     except JWTError:
         return None
     
