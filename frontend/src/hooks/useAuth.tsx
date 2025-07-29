@@ -16,6 +16,9 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, username: string, password: string) => Promise<boolean>;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
+  verifyEmail: (token: string) => Promise<boolean>;
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  resetPassword: (token: string, newPassword: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -70,6 +73,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const verifyEmail = async (token: string) => {
+    try {
+      await api.post('/api/v1/auth/verify-email', { token });
+      if (user) {
+        setUser({ ...user, is_verified: true });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    try {
+      await api.post('/api/v1/auth/forgot-password', { email });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const resetPassword = async (token: string, newPassword: string) => {
+    try {
+      await api.post('/api/v1/auth/reset-password', { token, new_password: newPassword });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -77,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register: registerUser, updateProfile, logout }}>
+    <AuthContext.Provider value={{ user, login, register: registerUser, updateProfile, verifyEmail, requestPasswordReset, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );

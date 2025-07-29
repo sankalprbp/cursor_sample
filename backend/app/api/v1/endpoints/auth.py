@@ -28,7 +28,9 @@ from app.schemas.auth import (
     ResendVerification,
     LogoutRequest,
     AuthResponse,
-    UserRegistrationResponse
+    UserRegistrationResponse,
+    UpdateUserRole,
+    UpdateUserTenant
 )
 from app.models.user import User
 from app.models.user import UserRole
@@ -479,3 +481,61 @@ async def activate_user(
         message=f"User {'activated' if user.is_active else 'deactivated'} successfully",
         success=True
     )
+
+
+@router.patch("/admin/users/{user_id}/role", response_model=AuthResponse)
+async def update_user_role(
+    user_id: str,
+    role_update: UpdateUserRole,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """Promote or demote a user's role"""
+    from sqlalchemy import select
+
+    stmt = select(User).where(User.id == user_id)
+    if current_user.role != UserRole.SUPER_ADMIN:
+        stmt = stmt.where(User.tenant_id == current_user.tenant_id)
+
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if current_user.role != UserRole.SUPER_ADMIN and role_update.role == UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot promote to super admin")
+
+    user.role = role_update.role
+    await db.commit()
+
+    return AuthResponse(message="User role updated successfully", success=True)
+
+
+@router.patch("/admin/users/{user_id}/tenant", response_model=AuthResponse)
+async def update_user_tenant(
+    user_id: str,
+    tenant_update: UpdateUserTenant,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """Change a user's tenant membership"""
+    from sqlalchemy import select
+
+    stmt = select(User).where(User.id == user_id)
+    if current_user.role != UserRole.SUPER_ADMIN:
+        stmt = stmt.where(User.tenant_id == current_user.tenant_id)
+
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if current_user.role != UserRole.SUPER_ADMIN and tenant_update.tenant_id and str(current_user.tenant_id) != str(tenant_update.tenant_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot move user to another tenant")
+
+    user.tenant_id = tenant_update.tenant_id
+    await db.commit()
+
+    return AuthResponse(message="User tenant updated successfully", success=True)
