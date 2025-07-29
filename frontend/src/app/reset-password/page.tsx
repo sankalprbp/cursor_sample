@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from 'react';
+export const dynamic = "force-dynamic";
+import React, { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,7 +11,7 @@ const schema = z.object({ password: z.string().min(6) });
 
 type FormData = z.infer<typeof schema>;
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const { resetPassword } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -49,5 +50,13 @@ export default function ResetPasswordPage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
