@@ -84,3 +84,18 @@ export async function updateProfile(userId: string, data: any) {
   const res = await api.put(`/api/v1/users/${userId}`, data);
   return res.data;
 }
+
+export async function fetchTenants() {
+  const res = await api.get('/api/v1/tenants');
+  return res.data.tenants as Array<any>;
+}
+
+export async function changeUserRole(userId: string, role: string) {
+  const res = await api.patch(`/api/v1/auth/admin/users/${userId}/role`, { role });
+  return res.data;
+}
+
+export async function changeUserTenant(userId: string, tenantId: string | null) {
+  const res = await api.patch(`/api/v1/auth/admin/users/${userId}/tenant`, { tenant_id: tenantId });
+  return res.data;
+}
