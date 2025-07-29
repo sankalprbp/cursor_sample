@@ -4,7 +4,9 @@ Pydantic models for auth-related requests and responses
 """
 
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
+from app.models.user import UserRole
 
 
 class UserLogin(BaseModel):
@@ -102,3 +104,13 @@ class UserRegistrationResponse(BaseModel):
     user: UserResponse
     message: str
     verification_required: bool = True
+
+
+class UpdateUserRole(BaseModel):
+    """Request schema to update a user's role"""
+    role: UserRole
+
+
+class UpdateUserTenant(BaseModel):
+    """Request schema to update a user's tenant membership"""
+    tenant_id: Optional[UUID] = None
