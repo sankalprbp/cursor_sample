@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from 'react';
+export const dynamic = "force-dynamic";
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const { verifyEmail } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     const token = searchParams.get('token');
     if (token) {
-      verifyEmail(token).then(ok => {
+      verifyEmail(token).then((ok) => {
         setStatus(ok ? 'success' : 'error');
         if (ok) {
           setTimeout(() => router.push('/dashboard'), 2000);
@@ -21,13 +22,23 @@ export default function VerifyEmailPage() {
     } else {
       setStatus('error');
     }
-  }, [searchParams]);
+  }, [searchParams, router, verifyEmail]);
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       {status === 'verifying' && <p>Verifying email...</p>}
       {status === 'success' && <p>Email verified! Redirecting...</p>}
-      {status === 'error' && <p className="text-red-500">Invalid or expired token.</p>}
+      {status === 'error' && (
+        <p className="text-red-500">Invalid or expired token.</p>
+      )}
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
