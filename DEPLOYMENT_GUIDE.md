@@ -1,222 +1,494 @@
-# Voice Agent Platform - Deployment Guide
+# Voice Agent Platform - Complete Deployment Guide
 
-This guide will help you deploy the Voice Agent Platform and configure it with Twilio for AI-powered phone calls.
+This comprehensive guide will walk you through deploying the Voice Agent Platform step-by-step, including local configuration, domain setup, and Twilio integration.
 
-## 🚀 Quick Start
+## 🚀 Quick Start Overview
 
-### Prerequisites
-- Docker and Docker Compose installed
-- A Twilio account with a phone number
-- A domain name (optional, but recommended for production)
+1. **Prerequisites Check** - Ensure all requirements are met
+2. **Local Configuration** - Set up environment and domain
+3. **Docker Build** - Build and start the application
+4. **Webhook Configuration** - Generate and configure Twilio webhooks
+5. **Testing & Verification** - Test all components
+6. **Production Deployment** - SSL and security setup
 
-### 1. Deploy the Application
+---
 
-Run the startup script:
+## 📋 Prerequisites
+
+### System Requirements
+- **OS**: Linux (Ubuntu 20.04+ recommended), macOS, or Windows with WSL2
+- **RAM**: Minimum 4GB, recommended 8GB+
+- **Storage**: At least 10GB free space
+- **Network**: Stable internet connection
+
+### Required Software
 ```bash
-./start.sh
+# Check if Docker is installed
+docker --version
+docker-compose --version
+
+# If not installed, run the installation script
+chmod +x get-docker.sh
+./get-docker.sh
 ```
 
-This will:
-- Build and start all containers
-- Display the webhook URLs for Twilio configuration
-- Show you how to access the dashboard
+### Required Accounts
+- **Twilio Account**: [Sign up here](https://www.twilio.com/try-twilio)
+- **OpenAI API Key**: [Get API key here](https://platform.openai.com/api-keys)
+- **ElevenLabs API Key** (optional): [Get API key here](https://elevenlabs.io/)
+- **Domain Name** (for production): Purchase from any registrar
 
-### 2. Access the Application
+---
 
-Once deployed, you can access:
-- **Frontend Dashboard**: `http://your-server-ip`
-- **Backend API**: `http://your-server-ip:8000`
-- **API Documentation**: `http://your-server-ip/docs`
-- **Demo Dashboard**: `http://your-server-ip/dashboard` (no login required)
+## 🔧 Step 1: Local Configuration
 
-## 🔗 Twilio Configuration
+### 1.1 Clone and Navigate
+```bash
+# Navigate to project directory
+cd /path/to/voice-agent-platform
 
-### Webhook URLs
+# Verify all files are present
+ls -la
+```
 
-The application provides these webhook endpoints for Twilio:
+### 1.2 Fix Docker Build Issues (if needed)
+```bash
+# Run the Docker fix script if you encounter build issues
+./fix-docker-build.sh
 
-1. **Webhook URL** (for incoming calls):
-   ```
-   http://your-domain.com/api/v1/voice/twilio/webhook/{call_id}
-   ```
+# Or use the quick fix
+./quick-fix.sh
+```
 
-2. **Status Callback URL** (for call status updates):
-   ```
-   http://your-domain.com/api/v1/voice/twilio/status/{call_id}
-   ```
+### 1.3 Generate Webhook URLs
+```bash
+# Generate webhook URLs for Twilio
+./generate-webhook-urls.sh
+```
 
-### Configure in Twilio Console
+This script will:
+- Detect your public IP address
+- Ask for your domain (if using custom domain)
+- Generate webhook URLs for Twilio Console
+- Save configuration to `webhook-config.txt`
 
-1. **Log into Twilio Console**
-   - Go to https://console.twilio.com/
-   - Navigate to Phone Numbers > Manage > Active numbers
+### 1.4 Update Nginx Configuration
 
-2. **Select Your Phone Number**
-   - Click on your Twilio phone number
-   - Go to the "Voice Configuration" section
+**For Local Development:**
+```bash
+# Edit nginx configuration
+nano nginx/nginx.conf
 
-3. **Set Webhook URLs**
-   - **Webhook URL**: `http://your-domain.com/api/v1/voice/twilio/webhook/{call_id}`
-   - **Status Callback URL**: `http://your-domain.com/api/v1/voice/twilio/status/{call_id}`
-   - **HTTP Method**: POST
+# Replace 'your-domain.com' with your actual domain or IP
+# For local testing, you can use 'localhost'
+```
 
-4. **Save Configuration**
-   - Click "Save Configuration"
+**For Production:**
+```bash
+# Edit nginx configuration
+nano nginx/nginx.conf
 
-## 🌐 Domain Configuration
+# Replace 'your-domain.com' with your actual domain
+# Example: server_name myapp.com www.myapp.com;
+```
 
-### For Production (Recommended)
+### 1.5 Environment Configuration (Optional)
 
-1. **Get a Domain Name**
-   - Purchase a domain (e.g., from Namecheap, GoDaddy, etc.)
-   - Point it to your server's IP address
+Create a `.env` file in the root directory for custom configuration:
 
-2. **Update nginx Configuration**
-   - Edit `nginx/nginx.conf`
-   - Replace `server_name localhost;` with your domain
-   - Uncomment HTTPS redirect section if using SSL
-
-3. **SSL Certificate (Recommended)**
-   ```bash
-   # Install Certbot
-   sudo apt install certbot python3-certbot-nginx
-   
-   # Get SSL certificate
-   sudo certbot --nginx -d your-domain.com
-   ```
-
-### For Development/Testing
-
-Use your server's public IP address directly:
-- **Webhook URL**: `http://your-server-ip/api/v1/voice/twilio/webhook/{call_id}`
-- **Status Callback URL**: `http://your-server-ip/api/v1/voice/twilio/status/{call_id}`
-
-## 🔧 Environment Configuration
-
-### Backend Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Database
+```bash
+# Create environment file
+cat > .env << 'EOF'
+# Database Configuration
 DATABASE_URL=postgresql://postgres:password@postgres:5432/voice_agent_db
-
-# Redis
 REDIS_URL=redis://redis:6379/0
 
 # Security
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=your-super-secret-key-change-this-in-production
 ENVIRONMENT=production
+DEBUG=false
 
 # AI Services
-OPENAI_API_KEY=your-openai-api-key
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
+OPENAI_API_KEY=sk-your-openai-api-key-here
+ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
 
-# Twilio (Optional for demo)
+# Twilio Configuration (Optional)
 TWILIO_ACCOUNT_SID=your-twilio-account-sid
 TWILIO_AUTH_TOKEN=your-twilio-auth-token
-TWILIO_PHONE_NUMBER=your-twilio-phone-number
+TWILIO_PHONE_NUMBER=+1234567890
 
-# AWS (Optional)
+# AWS Configuration (Optional)
 AWS_ACCESS_KEY_ID=your-aws-access-key
 AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-AWS_S3_BUCKET=your-s3-bucket
+AWS_S3_BUCKET=your-s3-bucket-name
 
-# Webhook Secret
-WEBHOOK_SECRET=your-webhook-secret
+# Webhook Security
+WEBHOOK_SECRET=your-webhook-secret-key
+
+# CORS Settings
+ALLOWED_ORIGINS=https://your-domain.com,http://localhost:3000
+ALLOWED_HOSTS=your-domain.com,localhost,127.0.0.1
+EOF
 ```
 
-### Frontend Environment Variables
+---
 
-The frontend will automatically use the backend URL. For production, you may want to set:
+## 🐳 Step 2: Docker Build and Launch
 
-```env
-NEXT_PUBLIC_API_URL=https://your-domain.com
-NEXT_PUBLIC_WS_URL=wss://your-domain.com
-```
-
-## 📊 Monitoring and Logs
-
-### View Application Logs
+### 2.1 Build the Application
 ```bash
-# All services
-docker-compose logs -f
+# Build all containers
+docker-compose build --no-cache
 
-# Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f nginx
+# Check build status
+docker-compose ps
 ```
 
-### Health Checks
-- **Frontend**: `http://your-domain.com/health`
-- **Backend**: `http://your-domain.com:8000/health`
-- **API Docs**: `http://your-domain.com/docs`
+### 2.2 Start the Application
+```bash
+# Start all services
+docker-compose up -d
 
-## 🧪 Testing the Integration
+# Check service status
+docker-compose ps
 
-### 1. Test the Demo Dashboard
-- Go to `http://your-domain.com/dashboard`
-- Try the AI calling functionality
-- This works without authentication
+# View logs
+docker-compose logs -f
+```
 
-### 2. Test Twilio Webhooks
-- Make a call to your Twilio number
-- Check the logs: `docker-compose logs -f backend`
-- Verify webhook calls in Twilio console
+### 2.3 Verify All Services Are Running
+```bash
+# Check all containers are healthy
+docker-compose ps
 
-### 3. Test API Endpoints
+# Expected output:
+# Name                    Command               State           Ports
+# -------------------------------------------------------------------------------
+# voice_agent_backend     uvicorn main:app --ho ...   Up      0.0.0.0:8000->8000/tcp
+# voice_agent_frontend    node server.js             Up      0.0.0.0:3000->3000/tcp
+# voice_agent_nginx       nginx -g daemon off;       Up      0.0.0.0:80->80/tcp
+# voice_agent_postgres    docker-entrypoint.s ...   Up      0.0.0.0:5432->5432/tcp
+# voice_agent_redis       docker-entrypoint.s ...   Up      0.0.0.0:6379->6379/tcp
+```
+
+### 2.4 Health Check
+```bash
+# Test backend health
+curl http://localhost:8000/health
+
+# Test frontend health
+curl http://localhost:3000
+
+# Test nginx health
+curl http://localhost/health
+```
+
+---
+
+## 🔗 Step 3: Webhook Configuration
+
+### 3.1 Get Your Webhook URLs
+```bash
+# Run the webhook generator
+./generate-webhook-urls.sh
+```
+
+**Example Output:**
+```
+🔗 Generated Webhook URLs for Twilio
+====================================
+
+📞 Webhook URL (for incoming calls):
+   http://your-ip-address/api/v1/voice/twilio/webhook/{call_id}
+
+📊 Status Callback URL (for call status updates):
+   http://your-ip-address/api/v1/voice/twilio/status/{call_id}
+```
+
+### 3.2 Configure Twilio Console
+
+1. **Log into Twilio Console**
+   - Go to: https://console.twilio.com/
+   - Sign in with your Twilio account
+
+2. **Navigate to Phone Numbers**
+   - Click "Phone Numbers" in the left sidebar
+   - Click "Manage" → "Active numbers"
+
+3. **Configure Your Phone Number**
+   - Click on your Twilio phone number
+   - Scroll to "Voice Configuration" section
+
+4. **Set Webhook URLs**
+   - **Webhook URL**: `http://your-domain.com/api/v1/voice/twilio/webhook/{call_id}`
+   - **Status Callback URL**: `http://your-domain.com/api/v1/voice/twilio/status/{call_id}`
+   - **HTTP Method**: POST
+   - **Primary Handler**: Webhook
+
+5. **Save Configuration**
+   - Click "Save Configuration"
+
+### 3.3 Test Webhook Endpoints
 ```bash
 # Test webhook endpoint
-curl -X POST http://your-domain.com/api/v1/voice/twilio/webhook/test-call-id \
+curl -X POST http://localhost/api/v1/voice/twilio/webhook/test-call \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "CallStatus=ringing&From=+1234567890&To=+0987654321"
 
 # Test status endpoint
-curl -X POST http://your-domain.com/api/v1/voice/twilio/status/test-call-id \
+curl -X POST http://localhost/api/v1/voice/twilio/status/test-call \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "CallStatus=completed"
 ```
 
-## 🔒 Security Considerations
+---
 
-### Production Security
-1. **Use HTTPS**: Always use SSL certificates in production
-2. **Strong Secrets**: Use strong, unique secret keys
-3. **Firewall**: Configure firewall to only allow necessary ports
-4. **Rate Limiting**: Already configured in nginx
-5. **Authentication**: Enable authentication for production use
+## 🌐 Step 4: Domain and SSL Setup (Production)
 
-### Webhook Security
-- Webhook endpoints are public (no authentication required)
-- This is necessary for Twilio to call your application
-- Implement additional validation if needed
+### 4.1 Domain Configuration
+
+**For Custom Domain:**
+```bash
+# Update nginx configuration with your domain
+sed -i 's/your-domain.com/YOUR_ACTUAL_DOMAIN.com/g' nginx/nginx.conf
+
+# Restart nginx
+docker-compose restart nginx
+```
+
+**For IP Address Only:**
+```bash
+# Update nginx configuration with your IP
+sed -i 's/your-domain.com/YOUR_IP_ADDRESS/g' nginx/nginx.conf
+
+# Restart nginx
+docker-compose restart nginx
+```
+
+### 4.2 SSL Certificate Setup (Recommended)
+
+**Using Let's Encrypt:**
+```bash
+# Install Certbot
+sudo apt update
+sudo apt install certbot python3-certbot-nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d your-domain.com
+
+# Test certificate renewal
+sudo certbot renew --dry-run
+```
+
+**Using Self-Signed Certificate (Development):**
+```bash
+# Generate self-signed certificate
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/nginx-selfsigned.key \
+  -out /etc/ssl/certs/nginx-selfsigned.crt
+
+# Update nginx configuration
+# Edit nginx/nginx.conf and update SSL certificate paths
+```
+
+### 4.3 Firewall Configuration
+```bash
+# Allow necessary ports
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 22/tcp
+
+# Enable firewall
+sudo ufw enable
+```
+
+---
+
+## 🧪 Step 5: Testing and Verification
+
+### 5.1 Test Application Access
+```bash
+# Test frontend
+curl -I http://localhost
+
+# Test backend API
+curl -I http://localhost:8000/health
+
+# Test API documentation
+curl -I http://localhost/docs
+```
+
+### 5.2 Test Dashboard
+1. Open your browser
+2. Navigate to: `http://your-domain.com/dashboard`
+3. Try the AI calling functionality
+4. Verify call logs are being created
+
+### 5.3 Test Twilio Integration
+1. Call your Twilio phone number
+2. Check application logs: `docker-compose logs -f backend`
+3. Verify webhook calls in Twilio console
+4. Check call history in the dashboard
+
+### 5.4 Monitor Application
+```bash
+# View all logs
+docker-compose logs -f
+
+# View specific service logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+docker-compose logs -f nginx
+
+# Check resource usage
+docker stats
+```
+
+---
+
+## 🔒 Step 6: Production Security
+
+### 6.1 Environment Security
+```bash
+# Generate strong secret keys
+openssl rand -hex 32
+
+# Update .env file with strong secrets
+nano .env
+```
+
+### 6.2 Database Security
+```bash
+# Change default database password
+# Edit docker-compose.yml and update POSTGRES_PASSWORD
+# Restart services
+docker-compose down
+docker-compose up -d
+```
+
+### 6.3 Network Security
+```bash
+# Configure firewall rules
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+---
+
+## 📊 Step 7: Monitoring and Maintenance
+
+### 7.1 Health Monitoring
+```bash
+# Set up health check monitoring
+curl http://localhost/health
+curl http://localhost:8000/health
+curl http://localhost:3000
+
+# Check service status
+docker-compose ps
+```
+
+### 7.2 Log Management
+```bash
+# View recent logs
+docker-compose logs --tail=100
+
+# Follow logs in real-time
+docker-compose logs -f
+
+# Export logs
+docker-compose logs > application.log
+```
+
+### 7.3 Backup and Recovery
+```bash
+# Backup database
+docker-compose exec postgres pg_dump -U postgres voice_agent_db > backup.sql
+
+# Backup configuration
+tar -czf config-backup.tar.gz nginx/ .env docker-compose.yml
+
+# Restore database
+docker-compose exec -T postgres psql -U postgres voice_agent_db < backup.sql
+```
+
+---
 
 ## 🚨 Troubleshooting
 
-### Common Issues
+### Common Issues and Solutions
 
-1. **Webhooks not receiving calls**
-   - Check if your domain is accessible from the internet
-   - Verify Twilio webhook URLs are correct
-   - Check nginx logs: `docker-compose logs nginx`
+**1. Docker Build Fails**
+```bash
+# Fix Docker build issues
+./fix-docker-build.sh
 
-2. **Application not starting**
-   - Check Docker and Docker Compose are installed
-   - Ensure ports 80 and 8000 are available
-   - Check logs: `docker-compose logs`
+# Or use alternative Dockerfile
+mv backend/Dockerfile backend/Dockerfile.original
+mv backend/Dockerfile.alternative backend/Dockerfile
+docker-compose build --no-cache
+```
 
-3. **Database connection issues**
-   - Ensure PostgreSQL container is running
-   - Check database logs: `docker-compose logs postgres`
+**2. Services Not Starting**
+```bash
+# Check service status
+docker-compose ps
 
-4. **Frontend not loading**
-   - Check if frontend container is healthy
-   - Verify nginx is routing correctly
-   - Check frontend logs: `docker-compose logs frontend`
+# View detailed logs
+docker-compose logs backend
+docker-compose logs frontend
+
+# Restart services
+docker-compose restart
+```
+
+**3. Webhooks Not Working**
+```bash
+# Test webhook endpoints
+curl -X POST http://localhost/api/v1/voice/twilio/webhook/test \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "CallStatus=ringing"
+
+# Check nginx logs
+docker-compose logs nginx
+
+# Verify domain accessibility
+curl -I http://your-domain.com
+```
+
+**4. Database Connection Issues**
+```bash
+# Check database status
+docker-compose logs postgres
+
+# Restart database
+docker-compose restart postgres
+
+# Check database connection
+docker-compose exec backend python -c "import psycopg2; print('DB OK')"
+```
+
+**5. SSL Certificate Issues**
+```bash
+# Test SSL certificate
+openssl s_client -connect your-domain.com:443
+
+# Renew certificate
+sudo certbot renew
+
+# Check certificate status
+sudo certbot certificates
+```
+
+---
+
+## 📞 Support and Resources
 
 ### Useful Commands
-
 ```bash
 # Restart all services
 docker-compose restart
@@ -235,21 +507,42 @@ docker-compose exec backend bash
 docker-compose exec frontend bash
 ```
 
-## 📞 Support
+### Log Locations
+- **Application Logs**: `docker-compose logs -f`
+- **Nginx Logs**: `/var/log/nginx/` (inside container)
+- **Database Logs**: `docker-compose logs postgres`
+- **System Logs**: `journalctl -u docker`
 
-If you encounter issues:
-1. Check the logs: `docker-compose logs -f`
-2. Verify your Twilio configuration
-3. Test webhook endpoints manually
-4. Check the API documentation at `/docs`
+### Configuration Files
+- **Docker Compose**: `docker-compose.yml`
+- **Nginx Config**: `nginx/nginx.conf`
+- **Environment**: `.env`
+- **Webhook Config**: `webhook-config.txt`
 
-## 🎉 Success!
+---
 
-Once configured, your Voice Agent Platform will:
-- Handle incoming calls automatically
-- Process calls with AI agents
-- Store call history and transcripts
-- Provide analytics and monitoring
-- Support multiple tenants (businesses)
+## 🎉 Success Checklist
 
-The demo dashboard at `/dashboard` allows you to test the functionality without authentication.
+After completing all steps, verify:
+
+- ✅ All Docker containers are running
+- ✅ Application is accessible at your domain
+- ✅ SSL certificate is working (if using HTTPS)
+- ✅ Twilio webhooks are configured
+- ✅ Dashboard is functional
+- ✅ AI calling works
+- ✅ Call logs are being created
+- ✅ Health checks pass
+- ✅ Logs show no errors
+
+---
+
+## 📚 Additional Resources
+
+- **API Documentation**: `http://your-domain.com/docs`
+- **Dashboard**: `http://your-domain.com/dashboard`
+- **Health Check**: `http://your-domain.com/health`
+- **Twilio Console**: https://console.twilio.com/
+- **Project Documentation**: See README.md and other .md files
+
+Your Voice Agent Platform is now fully deployed and ready to handle AI-powered phone calls! 🚀
