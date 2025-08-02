@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useContext, createContext } from 'react';
-import api from '@/services/api';
+import api, { secureStorage } from '@/services/api';
 import { AxiosError } from 'axios';
 
 interface User {
@@ -11,6 +11,10 @@ interface User {
   first_name?: string;
   last_name?: string;
   is_verified?: boolean;
+  tenant_id?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface AuthContextType {
@@ -25,6 +29,7 @@ interface AuthContextType {
   resetPassword: (token: string, newPassword: string) => Promise<boolean>;
   logout: () => void;
   error: string | null;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,13 +39,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const clearError = () => setError(null);
+
   const fetchMe = async (): Promise<User> => {
     const res = await api.get('/api/v1/auth/me');
     return res.data;
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = secureStorage.getItem('accessToken');
     if (token) {
       setLoading(true);
       fetchMe()
@@ -61,24 +68,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const getErrorMessage = (error: AxiosError): string => {
+    if (error.response?.data?.detail) {
+      return error.response.data.detail;
+    }
+    
+    switch (error.response?.status) {
+      case 400:
+        return 'Invalid request. Please check your input.';
+      case 401:
+        return 'Invalid credentials. Please check your email and password.';
+      case 403:
+        return 'Access denied. Your account may be disabled.';
+      case 404:
+        return 'Resource not found.';
+      case 409:
+        return 'Email already registered. Please use a different email or try logging in.';
+      case 422:
+        return 'Validation error. Please check your input.';
+      case 429:
+        return 'Too many requests. Please try again later.';
+      case 500:
+        return 'Server error. Please try again later.';
+      default:
+        if (error.code === 'ECONNABORTED') {
+          return 'Request timeout. Please check your connection and try again.';
+        }
+        if (!error.response) {
+          return 'Network error. Please check your connection and try again.';
+        }
+        return 'An unexpected error occurred. Please try again.';
+    }
+  };
+
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
       const res = await api.post('/api/v1/auth/login', { email, password });
-      localStorage.setItem('accessToken', res.data.access_token);
-      localStorage.setItem('refreshToken', res.data.refresh_token);
-      setUser(await fetchMe());
+      
+      secureStorage.setItem('accessToken', res.data.access_token);
+      secureStorage.setItem('refreshToken', res.data.refresh_token);
+      
+      const userData = await fetchMe();
+      setUser(userData);
       return true;
     } catch (err) {
       const axiosError = err as AxiosError<{detail: string}>;
-      if (axiosError.response?.status === 401) {
-        setError('Invalid credentials. Please check your email and password.');
-      } else if (axiosError.response?.status === 403) {
-        setError('Your account is disabled. Please contact support.');
-      } else {
-        setError('Login failed. Please try again later.');
-      }
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       console.error('Login error:', err);
       return false;
     } finally {
@@ -121,7 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError('Registration completed but verification system is unavailable. You can try logging in or use the resend verification option.');
       return false;
     } catch (err) {
-      setError('Registration failed. Please try again later.');
+      const axiosError = err as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       console.error('Registration error:', err);
       return false;
     } finally {
@@ -132,22 +172,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = async (data: Partial<User>) => {
     if (!user) return false;
     try {
+      setError(null);
       const updated = await api.put(`/api/v1/users/${user.id}`, data);
       setUser(updated.data);
       return true;
-    } catch {
+    } catch (err) {
+      const axiosError = err as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       return false;
     }
   };
 
   const verifyEmail = async (token: string) => {
     try {
+      setError(null);
       await api.post('/api/v1/auth/verify-email', { token });
       if (user) {
         setUser({ ...user, is_verified: true });
       }
       return true;
-    } catch {
+    } catch (err) {
+      const axiosError = err as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       return false;
     }
   };
@@ -155,9 +203,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resendVerification = async (email: string) => {
     try {
       setLoading(true);
+      setError(null);
       await api.post('/api/v1/auth/resend-verification', { email });
       return true;
     } catch (error) {
+      const axiosError = error as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       console.error('Error resending verification email:', error);
       return false;
     } finally {
@@ -167,18 +219,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     try {
+      setError(null);
       await api.post('/api/v1/auth/forgot-password', { email });
       return true;
-    } catch {
+    } catch (err) {
+      const axiosError = err as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       return false;
     }
   };
 
   const resetPassword = async (token: string, newPassword: string) => {
     try {
+      setError(null);
       await api.post('/api/v1/auth/reset-password', { token, new_password: newPassword });
       return true;
-    } catch {
+    } catch (err) {
+      const axiosError = err as AxiosError<{detail: string}>;
+      const errorMessage = getErrorMessage(axiosError);
+      setError(errorMessage);
       return false;
     }
   };
@@ -186,15 +246,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     try {
       // Attempt to blacklist the refresh token on the server
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = secureStorage.getItem('refreshToken');
       if (refreshToken) {
         api.post('/api/v1/auth/logout', { refresh_token: refreshToken })
           .catch(err => console.error('Error during logout:', err));
       }
     } finally {
       // Always clear local storage and state, even if server request fails
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      secureStorage.removeItem('accessToken');
+      secureStorage.removeItem('refreshToken');
       setUser(null);
       setError(null);
     }
@@ -212,7 +272,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestPasswordReset, 
       resetPassword, 
       logout,
-      error 
+      error,
+      clearError
     }}>
       {children}
     </AuthContext.Provider>
