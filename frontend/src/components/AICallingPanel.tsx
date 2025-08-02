@@ -20,7 +20,7 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isMakingCall, setIsMakingCall] = useState(false);
   const [callStatus, setCallStatus] = useState<CallStatus | null>(null);
-  const [twilioStatus, setTwilioStatus] = useState<{ available: boolean; configured: boolean } | null>(null);
+  const [twilioStatus, setTwilioStatus] = useState<{ available: boolean; configured: boolean; demo_mode?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
