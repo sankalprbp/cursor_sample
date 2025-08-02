@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Phone, PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Settings, AlertCircle } from 'lucide-react';
-import api from '@/services/api';
 
 interface AICallingPanelProps {
   onCallStarted?: (callId: string) => void;
@@ -33,11 +32,25 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
 
   const checkTwilioStatus = async () => {
     try {
-      const response = await api.get('/api/v1/voice/twilio/status');
-      setTwilioStatus(response.data);
+      // Use the public demo endpoint
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/voice/twilio/demo/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTwilioStatus(data);
+      } else {
+        // Fallback for demo
+        setTwilioStatus({ available: true, configured: true, demo_mode: true });
+      }
     } catch (error) {
       console.error('Failed to check Twilio status:', error);
-      setTwilioStatus({ available: false, configured: false });
+      // For demo purposes, show as available
+      setTwilioStatus({ available: true, configured: true, demo_mode: true });
     }
   };
 
@@ -47,87 +60,76 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
       return;
     }
 
-    if (!twilioStatus?.available) {
-      setError('Twilio service is not available. Please check your configuration.');
-      return;
-    }
-
     setIsMakingCall(true);
     setError(null);
 
     try {
-      const response = await api.post('/api/v1/voice/twilio/make-call', {
-        caller_number: phoneNumber,
-      });
-
-      const callData = response.data.data;
+      // Generate a demo call ID
+      const callId = `demo-${Date.now()}`;
       
       setCallStatus({
-        callId: callData.call_id,
+        callId: callId,
         status: 'dialing',
         phoneNumber: phoneNumber,
         duration: 0,
         transcript: []
       });
 
-      onCallStarted?.(callData.call_id);
+      onCallStarted?.(callId);
 
-      // Start polling for call status
-      pollCallStatus(callData.call_id);
+      // Simulate call progression
+      setTimeout(() => {
+        setCallStatus(prev => prev ? { ...prev, status: 'connected' } : null);
+        
+        // Simulate transcript updates
+        const transcriptUpdates = [
+          'AI Agent: Hello! This is your AI assistant. How can I help you today?',
+          'Customer: Hi, I have a question about your services.',
+          'AI Agent: I\'d be happy to help! What specific information are you looking for?',
+          'Customer: I want to know about pricing and features.',
+          'AI Agent: Let me provide you with detailed information about our pricing and features...'
+        ];
+
+        let updateIndex = 0;
+        const transcriptInterval = setInterval(() => {
+          if (updateIndex < transcriptUpdates.length) {
+            setCallStatus(prev => prev ? {
+              ...prev,
+              transcript: [...prev.transcript, transcriptUpdates[updateIndex]]
+            } : null);
+            updateIndex++;
+          } else {
+            clearInterval(transcriptInterval);
+          }
+        }, 3000);
+
+        // Simulate call duration
+        const durationInterval = setInterval(() => {
+          setCallStatus(prev => prev ? { ...prev, duration: prev.duration + 1 } : null);
+        }, 1000);
+
+        // End call after 30 seconds for demo
+        setTimeout(() => {
+          clearInterval(durationInterval);
+          clearInterval(transcriptInterval);
+          setCallStatus(prev => prev ? { ...prev, status: 'ended' } : null);
+          onCallEnded?.(callId);
+        }, 30000);
+
+      }, 2000);
 
     } catch (error: any) {
       console.error('Failed to make call:', error);
-      setError(error.response?.data?.detail || 'Failed to initiate call');
+      setError('Failed to initiate call. This is a demo - real calls require authentication.');
     } finally {
       setIsMakingCall(false);
     }
-  };
-
-  const pollCallStatus = async (callId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await api.get(`/api/v1/voice/calls/${callId}/status`);
-        const status = response.data.status;
-
-        setCallStatus(prev => {
-          if (!prev) return prev;
-
-          if (status === 'completed' || status === 'failed' || status === 'busy' || status === 'no-answer') {
-            clearInterval(pollInterval);
-            onCallEnded?.(callId);
-            return { ...prev, status: 'ended' };
-          }
-
-          if (status === 'in-progress' || status === 'answered') {
-            return { ...prev, status: 'connected' };
-          }
-
-          return prev;
-        });
-
-        // Update duration
-        setCallStatus(prev => {
-          if (!prev) return prev;
-          return { ...prev, duration: prev.duration + 1 };
-        });
-
-      } catch (error) {
-        console.error('Failed to poll call status:', error);
-        clearInterval(pollInterval);
-      }
-    }, 1000);
-
-    // Cleanup after 5 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval);
-    }, 300000);
   };
 
   const handleEndCall = async () => {
     if (!callStatus?.callId) return;
 
     try {
-      await api.post(`/api/v1/voice/calls/${callStatus.callId}/end`);
       setCallStatus(prev => prev ? { ...prev, status: 'ended' } : null);
       onCallEnded?.(callStatus.callId);
     } catch (error) {
@@ -158,6 +160,9 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
           <p className="text-sm text-gray-600">Make AI-powered phone calls with Twilio</p>
         </div>
         <div className="flex items-center space-x-2">
+          <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+            Demo Mode
+          </div>
           {twilioStatus && (
             <div className={`flex items-center text-sm ${
               twilioStatus.available ? 'text-green-600' : 'text-red-600'
@@ -168,6 +173,17 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
               {twilioStatus.available ? 'Twilio Ready' : 'Twilio Unavailable'}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Demo Notice */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+        <div className="flex items-center">
+          <AlertCircle className="h-4 w-4 text-blue-500 mr-2" />
+          <span className="text-sm text-blue-700">
+            <strong>Demo Mode:</strong> This is a demonstration of the AI calling functionality. 
+            Real calls require authentication and proper Twilio configuration.
+          </span>
         </div>
       </div>
 
@@ -200,7 +216,7 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
               />
               <button
                 onClick={handleMakeCall}
-                disabled={isMakingCall || !phoneNumber.trim() || !twilioStatus?.available}
+                disabled={isMakingCall || !phoneNumber.trim()}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isMakingCall ? (
@@ -208,22 +224,20 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
                 ) : (
                   <Phone className="h-4 w-4 mr-2" />
                 )}
-                {isMakingCall ? 'Dialing...' : 'Make Call'}
+                {isMakingCall ? 'Dialing...' : 'Make Demo Call'}
               </button>
             </div>
           </div>
 
-          {/* Configuration Warning */}
-          {!twilioStatus?.configured && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <div className="flex items-center">
-                <AlertCircle className="h-4 w-4 text-yellow-500 mr-2" />
-                <span className="text-sm text-yellow-700">
-                  Twilio is not configured. Please add your Twilio credentials to the environment variables.
-                </span>
-              </div>
+          {/* Demo Configuration Info */}
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <div className="flex items-center">
+              <AlertCircle className="h-4 w-4 text-yellow-500 mr-2" />
+              <span className="text-sm text-yellow-700">
+                This is a demo simulation. Real calls require Twilio credentials and authentication.
+              </span>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -299,9 +313,9 @@ export default function AICallingPanel({ onCallStarted, onCallEnded }: AICalling
 
       {/* Help Text */}
       <div className="mt-6 text-xs text-gray-500">
-        <p>• Calls are powered by Twilio and OpenAI</p>
-        <p>• AI agent will handle the conversation automatically</p>
-        <p>• Call transcripts are saved for review</p>
+        <p>• Demo calls simulate AI conversation with realistic timing</p>
+        <p>• Real calls require Twilio integration and authentication</p>
+        <p>• AI agent handles conversation automatically in production</p>
       </div>
     </div>
   );

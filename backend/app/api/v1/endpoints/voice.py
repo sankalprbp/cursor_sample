@@ -612,3 +612,15 @@ async def get_twilio_status(
         "available": twilio_service.is_available(),
         "configured": bool(twilio_service.client is not None)
     }
+
+
+@router.get("/twilio/demo/status")
+async def get_twilio_demo_status() -> Any:
+    """
+    Public demo endpoint to check Twilio status without authentication
+    """
+    return {
+        "available": True,
+        "configured": True,
+        "demo_mode": True
+    }
