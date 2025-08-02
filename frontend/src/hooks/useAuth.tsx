@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const getErrorMessage = (error: AxiosError): string => {
+  const getErrorMessage = (error: AxiosError<{detail?: string}>): string => {
     if (error.response?.data?.detail) {
       return error.response.data.detail;
     }
