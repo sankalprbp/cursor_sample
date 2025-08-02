@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];
@@ -12,29 +12,51 @@ const onRefreshed = (token: string) => {
   refreshSubscribers = [];
 };
 
+const onRefreshFailed = () => {
+  refreshSubscribers = [];
+  // Clear tokens if refresh fails
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    // Redirect to login page
+    window.location.href = '/login';
+  }
+};
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
 });
 
-api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+    
+    // Handle 401 Unauthorized errors (token expired)
     if (error.response?.status === 401 && !originalRequest._retry) {
       const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
+      
       if (refreshToken) {
+        // If already refreshing, queue this request
         if (isRefreshing) {
-          return new Promise((resolve) => {
+          return new Promise((resolve, reject) => {
             subscribeTokenRefresh((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
+              if (originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${token}`;
+              }
               resolve(api(originalRequest));
             });
           });
@@ -42,27 +64,50 @@ api.interceptors.response.use(
 
         originalRequest._retry = true;
         isRefreshing = true;
+        
         try {
           const resp = await axios.post(
             '/api/v1/auth/refresh',
             { refresh_token: refreshToken },
             { baseURL: api.defaults.baseURL }
           );
+          
           const newToken = resp.data.access_token;
           const newRefresh = resp.data.refresh_token;
+          
           localStorage.setItem('accessToken', newToken);
           localStorage.setItem('refreshToken', newRefresh);
-          api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+          
+          if (api.defaults.headers.common) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+          }
+          
           onRefreshed(newToken);
           return api(originalRequest);
-        } catch (err) {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          onRefreshFailed();
+          return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;
         }
+      } else {
+        // No refresh token available
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
       }
     }
+    
+    // Handle other error types
+    if (error.response?.status === 403) {
+      console.error('Access forbidden:', error.response.data);
+    } else if (error.response?.status === 404) {
+      console.error('Resource not found:', error.response.data);
+    } else if (error.response?.status === 500) {
+      console.error('Server error:', error.response.data);
+    }
+    
     return Promise.reject(error);
   }
 );

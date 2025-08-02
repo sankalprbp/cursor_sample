@@ -288,7 +288,7 @@ class AuthService:
             role=UserRole.TENANT_USER,  # Default role
             tenant_id=tenant_id,
             is_active=True,
-            is_verified=False,
+            is_verified=True,  # Set to True for MVP to bypass email verification
             email_verification_token=email_verification_token,
             email_verification_expires=email_verification_expires
         )
@@ -299,20 +299,33 @@ class AuthService:
         
         # Store verification token in Redis for quick lookup
         if send_verification_email:
-            verification_key = f"verification:email:{email_verification_token}"
-            await self.redis.set(
-                verification_key, 
-                str(user.id), 
-                expire=24 * 60 * 60  # 24 hours
-            )
+            try:
+                verification_key = f"verification:email:{email_verification_token}"
+                await self.redis.set(
+                    verification_key, 
+                    str(user.id), 
+                    expire=24 * 60 * 60  # 24 hours
+                )
+            except Exception as redis_error:
+                logger.error(f"Failed to store verification token in Redis: {redis_error}")
+                # Continue with user creation even if Redis fails
             
             # Send verification email
-            from app.services.email import email_service
-            await email_service.send_verification_email(
-                user.email, 
-                email_verification_token, 
-                user.username or user.first_name
-            )
+            try:
+                from app.services.email import email_service
+                email_sent = await email_service.send_verification_email(
+                    user.email, 
+                    email_verification_token, 
+                    user.username or user.first_name
+                )
+                
+                if not email_sent:
+                    logger.error(f"Failed to send verification email to {user.email}")
+                    # Continue with user creation even if email fails
+            except Exception as email_error:
+                logger.error(f"Exception when sending verification email: {email_error}")
+                # Continue with user creation even if email sending fails
+                # The user can request a new verification email later
         
         return user
     
