@@ -153,7 +153,7 @@ export default function LoginPage() {
             </div>
             
             <div className="text-center">
-              <span className="text-sm text-gray-600">Don't have an account? </span>
+              <span className="text-sm text-gray-600">Don&apos;t have an account? </span>
               <Link 
                 href="/register" 
                 className="text-sm text-indigo-600 hover:text-indigo-500 hover:underline transition-colors duration-200"
@@ -163,7 +163,7 @@ export default function LoginPage() {
             </div>
             
             <div className="text-center">
-              <span className="text-sm text-gray-600">Didn't receive verification email? </span>
+              <span className="text-sm text-gray-600">Didn&apos;t receive verification email? </span>
               <Link 
                 href="/resend-verification" 
                 className="text-sm text-indigo-600 hover:text-indigo-500 hover:underline transition-colors duration-200"

@@ -46,9 +46,9 @@ export default function ResendVerificationPage() {
           <div className="text-center">
             <div className="text-green-500 text-5xl mb-4">✓</div>
             <h2 className="text-xl font-bold mb-2">Email Sent!</h2>
-            <p className="mb-4">We've sent a verification link to your email address.</p>
+            <p className="mb-4">We&apos;ve sent a verification link to your email address.</p>
             <p className="text-sm text-gray-500 mb-4">
-              If you don't receive an email within a few minutes, check your spam folder or try again.
+              If you don&apos;t receive an email within a few minutes, check your spam folder or try again.
             </p>
             <div className="mt-6 flex justify-center space-x-4">
               <Link href="/login" className="text-indigo-600 hover:underline">
@@ -59,7 +59,7 @@ export default function ResendVerificationPage() {
         ) : (
           <>
             <p className="mb-4 text-gray-600">
-              Enter your email address below and we'll send you a new verification link.
+              Enter your email address below and we&apos;ll send you a new verification link.
             </p>
             
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
