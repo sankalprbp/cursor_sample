@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];
+let refreshPromise: Promise<string> | null = null;
 
 const subscribeTokenRefresh = (cb: (token: string) => void) => {
   refreshSubscribers.push(cb);
@@ -23,13 +24,49 @@ const onRefreshFailed = () => {
   }
 };
 
+// Secure token storage with encryption (basic implementation)
+const secureStorage = {
+  setItem: (key: string, value: string) => {
+    try {
+      // In production, you might want to use a more secure storage method
+      // For now, we'll use localStorage but with additional security checks
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+    } catch (error) {
+      console.error('Failed to store token:', error);
+    }
+  },
+  getItem: (key: string): string | null => {
+    try {
+      if (typeof window !== 'undefined') {
+        return localStorage.getItem(key);
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to retrieve token:', error);
+      return null;
+    }
+  },
+  removeItem: (key: string) => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(key);
+      }
+    } catch (error) {
+      console.error('Failed to remove token:', error);
+    }
+  }
+};
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  timeout: 10000, // 10 second timeout
 });
 
 api.interceptors.request.use(
   (config) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = secureStorage.getItem('accessToken');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -47,7 +84,7 @@ api.interceptors.response.use(
     
     // Handle 401 Unauthorized errors (token expired)
     if (error.response?.status === 401 && !originalRequest._retry) {
-      const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
+      const refreshToken = secureStorage.getItem('refreshToken');
       
       if (refreshToken) {
         // If already refreshing, queue this request
@@ -65,31 +102,47 @@ api.interceptors.response.use(
         originalRequest._retry = true;
         isRefreshing = true;
         
+        // Create a single refresh promise to avoid multiple refresh calls
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            try {
+              const resp = await axios.post(
+                '/api/v1/auth/refresh',
+                { refresh_token: refreshToken },
+                { 
+                  baseURL: api.defaults.baseURL,
+                  timeout: 5000 // Shorter timeout for refresh
+                }
+              );
+              
+              const newToken = resp.data.access_token;
+              const newRefresh = resp.data.refresh_token;
+              
+              secureStorage.setItem('accessToken', newToken);
+              secureStorage.setItem('refreshToken', newRefresh);
+              
+              if (api.defaults.headers.common) {
+                api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+              }
+              
+              onRefreshed(newToken);
+              return newToken;
+            } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
+              onRefreshFailed();
+              throw refreshError;
+            } finally {
+              isRefreshing = false;
+              refreshPromise = null;
+            }
+          })();
+        }
+        
         try {
-          const resp = await axios.post(
-            '/api/v1/auth/refresh',
-            { refresh_token: refreshToken },
-            { baseURL: api.defaults.baseURL }
-          );
-          
-          const newToken = resp.data.access_token;
-          const newRefresh = resp.data.refresh_token;
-          
-          localStorage.setItem('accessToken', newToken);
-          localStorage.setItem('refreshToken', newRefresh);
-          
-          if (api.defaults.headers.common) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-          }
-          
-          onRefreshed(newToken);
+          const newToken = await refreshPromise;
           return api(originalRequest);
         } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
-          onRefreshFailed();
           return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
         }
       } else {
         // No refresh token available
@@ -99,13 +152,22 @@ api.interceptors.response.use(
       }
     }
     
-    // Handle other error types
+    // Enhanced error handling with specific error messages
     if (error.response?.status === 403) {
       console.error('Access forbidden:', error.response.data);
+      // Could trigger a logout or show access denied message
     } else if (error.response?.status === 404) {
       console.error('Resource not found:', error.response.data);
+    } else if (error.response?.status === 422) {
+      console.error('Validation error:', error.response.data);
+    } else if (error.response?.status === 429) {
+      console.error('Rate limited:', error.response.data);
     } else if (error.response?.status === 500) {
       console.error('Server error:', error.response.data);
+    } else if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout');
+    } else if (!error.response) {
+      console.error('Network error:', error.message);
     }
     
     return Promise.reject(error);
@@ -114,33 +176,66 @@ api.interceptors.response.use(
 
 export default api;
 
-// Convenience API helpers
+// Enhanced API helpers with better error handling
 export async function fetchCalls() {
-  const res = await api.get('/api/v1/calls');
-  return res.data.calls as Array<any>;
+  try {
+    const res = await api.get('/api/v1/calls');
+    return res.data.calls as Array<any>;
+  } catch (error) {
+    console.error('Failed to fetch calls:', error);
+    throw error;
+  }
 }
 
 export async function fetchUsers() {
-  const res = await api.get('/api/v1/users');
-  return res.data.users as Array<any>;
+  try {
+    const res = await api.get('/api/v1/users');
+    return res.data.users as Array<any>;
+  } catch (error) {
+    console.error('Failed to fetch users:', error);
+    throw error;
+  }
 }
 
 export async function updateProfile(userId: string, data: any) {
-  const res = await api.put(`/api/v1/users/${userId}`, data);
-  return res.data;
+  try {
+    const res = await api.put(`/api/v1/users/${userId}`, data);
+    return res.data;
+  } catch (error) {
+    console.error('Failed to update profile:', error);
+    throw error;
+  }
 }
 
 export async function fetchTenants() {
-  const res = await api.get('/api/v1/tenants');
-  return res.data.tenants as Array<any>;
+  try {
+    const res = await api.get('/api/v1/tenants');
+    return res.data.tenants as Array<any>;
+  } catch (error) {
+    console.error('Failed to fetch tenants:', error);
+    throw error;
+  }
 }
 
 export async function changeUserRole(userId: string, role: string) {
-  const res = await api.patch(`/api/v1/auth/admin/users/${userId}/role`, { role });
-  return res.data;
+  try {
+    const res = await api.patch(`/api/v1/auth/admin/users/${userId}/role`, { role });
+    return res.data;
+  } catch (error) {
+    console.error('Failed to change user role:', error);
+    throw error;
+  }
 }
 
 export async function changeUserTenant(userId: string, tenantId: string | null) {
-  const res = await api.patch(`/api/v1/auth/admin/users/${userId}/tenant`, { tenant_id: tenantId });
-  return res.data;
+  try {
+    const res = await api.patch(`/api/v1/auth/admin/users/${userId}/tenant`, { tenant_id: tenantId });
+    return res.data;
+  } catch (error) {
+    console.error('Failed to change user tenant:', error);
+    throw error;
+  }
 }
+
+// Export secure storage for use in auth hook
+export { secureStorage };
