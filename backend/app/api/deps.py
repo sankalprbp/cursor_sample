@@ -42,7 +42,10 @@ async def get_current_user(
     )
     
     try:
-        token_data = await auth_service.verify_token(credentials.credentials)
+        token_data = await auth_service.verify_token(
+            credentials.credentials,
+            token_type="access",
+        )
         if not token_data:
             raise credentials_exception
         user_id = token_data.user_id
@@ -178,7 +181,10 @@ async def get_optional_user(
     token = authorization.split("Bearer ")[1]
     
     try:
-        token_data = await auth_service.verify_token(token)
+        token_data = await auth_service.verify_token(
+            token,
+            token_type="access",
+        )
         if not token_data:
             return None
         user_id = token_data.user_id
