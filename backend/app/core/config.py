@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     FROM_EMAIL: str = "noreply@voiceagent.com"
     FRONTEND_URL: str = "http://localhost:3000"
     
+    # Base URL for webhooks
+    BASE_URL: str = "http://localhost:8000"
+    
     # File Upload
     MAX_FILE_SIZE_MB: int = 50
     ALLOWED_FILE_TYPES: str = "pdf,txt,docx,md"

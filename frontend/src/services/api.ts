@@ -239,3 +239,47 @@ export async function changeUserTenant(userId: string, tenantId: string | null) 
 
 // Export secure storage for use in auth hook
 export { secureStorage };
+
+// AI Calling API functions
+export async function makeAICall(phoneNumber: string, tenantId?: string) {
+  try {
+    const res = await api.post('/api/v1/voice/twilio/make-call', {
+      caller_number: phoneNumber,
+      tenant_id: tenantId
+    });
+    return res.data;
+  } catch (error) {
+    console.error('Failed to make AI call:', error);
+    throw error;
+  }
+}
+
+export async function getTwilioStatus() {
+  try {
+    const res = await api.get('/api/v1/voice/twilio/status');
+    return res.data;
+  } catch (error) {
+    console.error('Failed to get Twilio status:', error);
+    throw error;
+  }
+}
+
+export async function getCallStatus(callId: string) {
+  try {
+    const res = await api.get(`/api/v1/voice/calls/${callId}/status`);
+    return res.data;
+  } catch (error) {
+    console.error('Failed to get call status:', error);
+    throw error;
+  }
+}
+
+export async function endCall(callId: string) {
+  try {
+    const res = await api.post(`/api/v1/voice/calls/${callId}/end`);
+    return res.data;
+  } catch (error) {
+    console.error('Failed to end call:', error);
+    throw error;
+  }
+}
