@@ -387,6 +387,33 @@ Respond naturally and helpfully to the caller's needs."""
             logger.error(f"Error generating call summary: {e}")
             return "Call summary generation failed."
     
+    async def _generate_call_summary_from_text(self, conversation_text: str) -> str:
+        """Generate a summary from conversation text"""
+        
+        try:
+            # Use OpenAI to generate summary
+            response = await self.openai_client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant that summarizes phone conversations. Provide a concise summary of the key points discussed."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Please summarize this phone conversation:\n\n{conversation_text}"
+                    }
+                ],
+                max_tokens=200,
+                temperature=0.3
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Failed to generate call summary from text: {e}")
+            return "Call summary unavailable"
+    
     def _get_available_functions(self) -> List[Dict]:
         """Get available functions for OpenAI function calling"""
         return [
