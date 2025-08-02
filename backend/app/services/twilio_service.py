@@ -10,7 +10,7 @@ from datetime import datetime
 import json
 
 from twilio.rest import Client
-from twilio.twiml import VoiceResponse
+from twilio.twiml.voice_response import VoiceResponse
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,9 +113,8 @@ class TwilioService:
                 response.say(greeting, voice='alice')
             
             # Set up streaming for real-time conversation
-            response.connect().stream(
-                url=f"{settings.BASE_URL}/api/v1/voice/twilio/stream/{call_id}"
-            )
+            connect = response.connect()
+            connect.stream(url=f"{settings.BASE_URL}/api/v1/voice/twilio/stream/{call_id}")
             
             return str(response)
             
