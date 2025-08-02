@@ -5,7 +5,7 @@ Handles AI voice agent calls, conversations, and telephony integration
 
 import logging
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -16,6 +16,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.services.auth import auth_service, security
 from app.services.voice_agent import voice_agent_service
+from app.services.twilio_service import twilio_service
 from app.models.user import User
 from app.models.call import Call
 from app.models.tenant import Tenant
@@ -471,4 +472,143 @@ async def get_call_status(
         "active_conversation": context is not None,
         "message_count": len(context.messages) if context else 0,
         "last_activity": context.messages[-1]["timestamp"] if context and context.messages else None
+    }
+
+
+# Twilio Integration Endpoints
+@router.post("/twilio/make-call")
+async def make_ai_call(
+    request: StartCallRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Make an outbound AI call using Twilio
+    """
+    user = await auth_service.get_current_user(db, credentials)
+    
+    # Determine tenant
+    tenant_id = request.tenant_id if request.tenant_id else user.tenant_id
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID is required"
+        )
+    
+    # Verify user has access to tenant
+    if user.role != "super_admin" and str(user.tenant_id) != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to tenant"
+        )
+    
+    # Check if Twilio is available
+    if not twilio_service.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Twilio service is not configured"
+        )
+    
+    try:
+        # Make the call
+        result = await twilio_service.make_outbound_call(
+            request.caller_number, tenant_id, db
+        )
+        
+        return {
+            "success": True,
+            "message": "Call initiated successfully",
+            "data": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to make AI call: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initiate call: {str(e)}"
+        )
+
+
+@router.post("/twilio/webhook/{call_id}")
+async def twilio_webhook(
+    call_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Handle Twilio webhook for call events
+    """
+    try:
+        form_data = await request.form()
+        
+        # Handle incoming call
+        if form_data.get("CallStatus") == "ringing":
+            from_number = form_data.get("From", "")
+            to_number = form_data.get("To", "")
+            
+            # Get tenant from call record
+            stmt = select(Call).where(Call.id == call_id)
+            result = await db.execute(stmt)
+            call = result.scalar_one_or_none()
+            
+            if not call:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Call not found"
+                )
+            
+            # Handle the incoming call
+            twiml_response = await twilio_service.handle_incoming_call(
+                from_number, to_number, str(call.tenant_id), db
+            )
+            
+            return Response(content=twiml_response, media_type="application/xml")
+        
+        return {"status": "processed"}
+        
+    except Exception as e:
+        logger.error(f"Twilio webhook error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed"
+        )
+
+
+@router.post("/twilio/status/{call_id}")
+async def twilio_status_webhook(
+    call_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Handle Twilio status callback
+    """
+    try:
+        form_data = await request.form()
+        call_status = form_data.get("CallStatus", "")
+        
+        # Update call status
+        await twilio_service.handle_call_status_update(call_id, call_status, db)
+        
+        return {"status": "updated"}
+        
+    except Exception as e:
+        logger.error(f"Twilio status webhook error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Status update failed"
+        )
+
+
+@router.get("/twilio/status")
+async def get_twilio_status(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Check if Twilio is configured and available
+    """
+    return {
+        "available": twilio_service.is_available(),
+        "configured": bool(twilio_service.client is not None)
     }

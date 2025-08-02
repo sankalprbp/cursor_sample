@@ -6,6 +6,7 @@ import { Phone, PhoneCall, MessageSquare, BarChart3, Settings, Upload, FileText,
 import { useAuth } from '@/hooks/useAuth';
 import { fetchCalls } from '@/services/api';
 import AuthGuard from '@/components/AuthGuard';
+import AICallingPanel from '@/components/AICallingPanel';
 import Link from 'next/link';
 
 interface Call {
@@ -35,8 +36,7 @@ export default function Dashboard() {
     averageDuration: 0,
     successRate: 0
   });
-  const [isStartingCall, setIsStartingCall] = useState(false);
-  const [testPhoneNumber, setTestPhoneNumber] = useState('+1-555-0123');
+
 
   // Load calls from API
   useEffect(() => {
@@ -58,27 +58,7 @@ export default function Dashboard() {
       .finally(() => {});
   }, [user]);
 
-  const handleStartTestCall = async () => {
-    setIsStartingCall(true);
-    try {
-      // In a real app, this would call the backend API
-      // For now, simulate starting a call
-      setTimeout(() => {
-        const newCall: Call = {
-          id: Date.now().toString(),
-          caller_number: testPhoneNumber,
-          status: 'active',
-          started_at: new Date().toISOString(),
-        };
-        setCalls(prev => [newCall, ...prev]);
-        setStats(prev => ({ ...prev, activeCalls: prev.activeCalls + 1, totalCalls: prev.totalCalls + 1 }));
-        setIsStartingCall(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Failed to start call:', error);
-      setIsStartingCall(false);
-    }
-  };
+
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -205,38 +185,32 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* AI Calling Panel */}
+        <div className="mb-8">
+          <AICallingPanel 
+            onCallStarted={(callId) => {
+              console.log('Call started:', callId);
+              // Refresh calls list
+              fetchCalls()
+                .then((data) => setCalls(data))
+                .catch(() => {});
+            }}
+            onCallEnded={(callId) => {
+              console.log('Call ended:', callId);
+              // Refresh calls list
+              fetchCalls()
+                .then((data) => setCalls(data))
+                .catch(() => {});
+            }}
+          />
+        </div>
+
         {/* Quick Actions */}
         <div className="bg-white shadow rounded-lg mb-8">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
-              {/* Start Test Call */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Start Test Call</h4>
-                <p className="text-sm text-gray-500 mb-3">Test your AI agent with a simulated call</p>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={testPhoneNumber}
-                    onChange={(e) => setTestPhoneNumber(e.target.value)}
-                    className="flex-1 min-w-0 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    placeholder="Phone number"
-                  />
-                  <button
-                    onClick={handleStartTestCall}
-                    disabled={isStartingCall}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {isStartingCall ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    ) : (
-                      <PhoneCall className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {/* Upload Knowledge */}
               <div className="border border-gray-200 rounded-lg p-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Upload Knowledge</h4>
@@ -254,6 +228,16 @@ export default function Dashboard() {
                 <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                   <BarChart3 className="h-4 w-4 mr-2" />
                   View Reports
+                </button>
+              </div>
+
+              {/* Settings */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Settings</h4>
+                <p className="text-sm text-gray-500 mb-3">Configure your AI agent and preferences</p>
+                <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Configure
                 </button>
               </div>
             </div>
