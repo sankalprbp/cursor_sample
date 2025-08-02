@@ -249,7 +249,10 @@ async def refresh_token(
     """
     try:
         # Verify refresh token
-        token_data = await auth_service.verify_token(refresh_request.refresh_token)
+        token_data = await auth_service.verify_token(
+            refresh_request.refresh_token,
+            token_type="refresh",
+        )
         if not token_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
