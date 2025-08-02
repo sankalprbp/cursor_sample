@@ -161,8 +161,16 @@ class AuthService:
             return await self.redis.set(blacklist_key, "true", expire=ttl)
         return True
     
-    async def verify_token(self, token: str) -> Optional[TokenData]:
-        """Verify and decode JWT token"""
+    async def verify_token(self, token: str, token_type: Optional[str] = None) -> Optional[TokenData]:
+        """Verify and decode JWT token
+
+        Args:
+            token: Encoded JWT token
+            token_type: Optional expected token type ("access" or "refresh")
+
+        Returns:
+            TokenData if token is valid and matches the expected type, otherwise None
+        """
         try:
             payload = jwt.decode(
                 token,
@@ -172,8 +180,13 @@ class AuthService:
 
             user_id: str = payload.get("sub")
             jti: str = payload.get("jti")
+            token_type_claim: Optional[str] = payload.get("type")
 
             if user_id is None or jti is None:
+                return None
+
+            # Ensure token type matches expected type when provided
+            if token_type and token_type_claim != token_type:
                 return None
 
             # Check if token is blacklisted
@@ -185,7 +198,7 @@ class AuthService:
             if await self.redis.exists(logout_all_key):
                 return None
 
-            token_data = TokenData(user_id=user_id)
+            token_data = TokenData(user_id=user_id, username=payload.get("username"))
             return token_data
 
         except JWTError:
@@ -204,7 +217,7 @@ class AuthService:
         )
         
         try:
-            token_data = await self.verify_token(credentials.credentials)
+            token_data = await self.verify_token(credentials.credentials, token_type="access")
             if token_data is None:
                 raise credentials_exception
                 
