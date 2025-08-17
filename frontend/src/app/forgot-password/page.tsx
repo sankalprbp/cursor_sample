@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import Link from 'next/link';
 
 const schema = z.object({
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
           >
             {isSubmitting || loading ? (
               <>
-                <LoadingSpinner size="small" color="white" />
+                <LoadingSpinner size="sm" />
                 <span className="ml-2">Sending...</span>
               </>
             ) : (

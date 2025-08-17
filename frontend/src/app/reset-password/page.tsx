@@ -7,7 +7,7 @@ import * as z from 'zod';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const schema = z.object({ password: z.string().min(6) });
 
@@ -31,7 +31,7 @@ function ResetPasswordContent() {
         showToast('Invalid reset token', 'error');
         return;
       }
-      
+
       const ok = await resetPassword(token, data.password);
       if (ok) {
         setDone(true);
@@ -54,8 +54,8 @@ function ResetPasswordContent() {
         <div className="p-4 text-red-500 text-center">
           <p className="font-bold text-xl mb-2">Invalid Reset Link</p>
           <p>The password reset link is invalid or has expired.</p>
-          <button 
-            onClick={() => router.push('/login')} 
+          <button
+            onClick={() => router.push('/login')}
             className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
           >
             Return to Login
@@ -71,7 +71,7 @@ function ResetPasswordContent() {
         <div className="text-center">
           <p className="text-green-500 font-bold mb-2">Password updated successfully!</p>
           <p>Redirecting to login page...</p>
-          <LoadingSpinner size="small" />
+          <LoadingSpinner size="sm" />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full max-w-sm">
@@ -82,14 +82,14 @@ function ResetPasswordContent() {
             {errors.password && <p className="text-red-500 text-sm">{errors.password.message}</p>}
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button 
-            type="submit" 
-            disabled={isSubmitting || loading} 
+          <button
+            type="submit"
+            disabled={isSubmitting || loading}
             className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center"
           >
             {isSubmitting || loading ? (
               <>
-                <LoadingSpinner size="small" color="white" />
+                <LoadingSpinner size="sm" />
                 <span className="ml-2">Updating...</span>
               </>
             ) : (

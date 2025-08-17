@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import LoadingSpinner from './LoadingSpinner';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -22,7 +22,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner size="large" />
+        <LoadingSpinner size="lg" />
       </div>
     );
   }

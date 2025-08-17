@@ -86,12 +86,18 @@ The setup script will give you the exact URLs to copy into Twilio:
 - ✅ **Monitors system** and keeps tunnel alive
 
 ### What You Get:
-- 🎯 **Beautiful Dashboard** at http://localhost:3000
+- 🎯 **Beautiful Dashboard** at http://localhost:3000 (NO LOGIN REQUIRED!)
 - 📞 **Working AI Phone Agent** that answers calls
 - 📊 **Real-time Call Logs** and transcripts
 - 🌐 **Public URL** via ngrok for Twilio webhooks
 - 🔍 **System Monitoring** and health checks
 - 📱 **Mobile-responsive** interface
+
+### 🚀 **Dashboard Access - No Authentication Required!**
+- **Direct Access**: http://localhost:3000/dashboard
+- **No Login Needed**: Dashboard works immediately without authentication
+- **Real-time Data**: Live call monitoring and system status
+- **Beautiful UI**: Professional, mobile-responsive design
 
 ## 🎨 Beautiful Dashboard Features
 

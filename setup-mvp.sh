@@ -328,6 +328,14 @@ test_system() {
     print_status "Testing frontend..."
     if curl -s http://localhost:3000 >/dev/null 2>&1; then
         print_success "Frontend is accessible"
+        
+        # Test dashboard specifically
+        DASHBOARD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/dashboard)
+        if [[ "$DASHBOARD_STATUS" == "200" ]]; then
+            print_success "Dashboard is accessible without authentication"
+        else
+            print_warning "Dashboard returned HTTP $DASHBOARD_STATUS"
+        fi
     else
         print_warning "Frontend may still be starting up"
     fi
@@ -419,6 +427,15 @@ main() {
     
     # Show final instructions
     show_final_instructions
+    
+    # Run verification
+    echo ""
+    print_status "Running final system verification..."
+    if ./verify-setup.sh; then
+        print_success "System verification passed!"
+    else
+        print_warning "Some verification checks failed, but system may still work"
+    fi
     
     # Keep script running to maintain ngrok tunnel
     echo ""

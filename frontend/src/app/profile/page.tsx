@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 
@@ -91,7 +91,7 @@ export default function ProfilePage() {
         >
           {isSubmitting || loading ? (
             <>
-              <LoadingSpinner size="small" color="white" />
+              <LoadingSpinner size="sm" />
               <span className="ml-2">Saving...</span>
             </>
           ) : (

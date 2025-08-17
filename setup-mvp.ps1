@@ -446,6 +446,20 @@ function Test-System {
     try {
         $frontendResponse = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing -TimeoutSec 5
         Write-Success "Frontend is accessible"
+        
+        # Test dashboard specifically
+        try {
+            $dashboardResponse = Invoke-WebRequest -Uri "http://localhost:3000/dashboard" -UseBasicParsing -TimeoutSec 5
+            if ($dashboardResponse.StatusCode -eq 200) {
+                Write-Success "Dashboard is accessible without authentication"
+            }
+            else {
+                Write-Warning "Dashboard returned HTTP $($dashboardResponse.StatusCode)"
+            }
+        }
+        catch {
+            Write-Warning "Dashboard may not be fully ready yet"
+        }
     }
     catch {
         Write-Warning "Frontend may still be starting up"
@@ -470,14 +484,14 @@ function Show-FinalInstructions {
     Write-Header "SETUP COMPLETE!"
     
     Write-Host ""
-    Write-Host "🎉 Your AI Voice Agent MVP is ready!" -ForegroundColor Green
+    Write-Host "Your AI Voice Agent MVP is ready!" -ForegroundColor Green
     Write-Host ""
-    Write-Host "📱 Access URLs:" -ForegroundColor Cyan
-    Write-Host "   • Frontend Dashboard: http://localhost:3000"
-    Write-Host "   • Backend API: http://localhost:8000"
-    Write-Host "   • API Documentation: http://localhost:8000/docs"
+    Write-Host "Access URLs:" -ForegroundColor Cyan
+    Write-Host "   - Frontend Dashboard: http://localhost:3000"
+    Write-Host "   - Backend API: http://localhost:8000"
+    Write-Host "   - API Documentation: http://localhost:8000/docs"
     if ($NgrokUrl) {
-        Write-Host "   • Public URL (ngrok): $NgrokUrl"
+        Write-Host "   - Public URL (ngrok): $NgrokUrl"
     }
     Write-Host ""
     
@@ -490,7 +504,7 @@ function Show-FinalInstructions {
     }
     
     if ($NgrokUrl -and $envVars.ContainsKey("TWILIO_PHONE_NUMBER")) {
-        Write-Host "📞 Twilio Configuration:" -ForegroundColor Cyan
+        Write-Host "Twilio Configuration:" -ForegroundColor Cyan
         Write-Host "   1. Go to: https://console.twilio.com/"
         Write-Host "   2. Navigate to: Phone Numbers > Manage > Active numbers"
         Write-Host "   3. Click your phone number: $($envVars['TWILIO_PHONE_NUMBER'])"
@@ -500,28 +514,28 @@ function Show-FinalInstructions {
         Write-Host "      $NgrokUrl/api/v1/voice/twilio/status/{call_id}"
         Write-Host "   6. Save the configuration"
         Write-Host ""
-        Write-Host "🧪 Testing:" -ForegroundColor Cyan
-        Write-Host "   • Call your Twilio number: $($envVars['TWILIO_PHONE_NUMBER'])"
-        Write-Host "   • The AI agent should answer and have a conversation"
-        Write-Host "   • Check the dashboard for call logs and transcripts"
+        Write-Host "Testing:" -ForegroundColor Cyan
+        Write-Host "   - Call your Twilio number: $($envVars['TWILIO_PHONE_NUMBER'])"
+        Write-Host "   - The AI agent should answer and have a conversation"
+        Write-Host "   - Check the dashboard for call logs and transcripts"
         Write-Host ""
     }
     
-    Write-Host "📋 Useful Commands:" -ForegroundColor Cyan
-    Write-Host "   • View logs: docker-compose logs -f"
-    Write-Host "   • Stop system: docker-compose down"
+    Write-Host "Useful Commands:" -ForegroundColor Cyan
+    Write-Host "   - View logs: docker-compose logs -f"
+    Write-Host "   - Stop system: docker-compose down"
     if ($NgrokProcess) {
-        Write-Host "   • Stop ngrok: Stop-Process -Id $($NgrokProcess.Id)"
+        Write-Host "   - Stop ngrok: Stop-Process -Id $($NgrokProcess.Id)"
     }
-    Write-Host "   • Restart: .\setup-mvp.ps1"
+    Write-Host "   - Restart: .\setup-mvp.ps1"
     Write-Host ""
-    Write-Host "⚠️  Important Notes:" -ForegroundColor Yellow
-    Write-Host "   • Keep this PowerShell window open to maintain the ngrok tunnel"
-    Write-Host "   • The ngrok URL changes each time you restart (free plan)"
-    Write-Host "   • Update Twilio webhooks if you restart ngrok"
-    Write-Host "   • Check logs if calls don't work as expected"
+    Write-Host "Important Notes:" -ForegroundColor Yellow
+    Write-Host "   - Keep this PowerShell window open to maintain the ngrok tunnel"
+    Write-Host "   - The ngrok URL changes each time you restart (free plan)"
+    Write-Host "   - Update Twilio webhooks if you restart ngrok"
+    Write-Host "   - Check logs if calls don't work as expected"
     Write-Host ""
-    Write-Host "🚀 Your AI voice agent is ready to take calls!" -ForegroundColor Green
+    Write-Host "Your AI voice agent is ready to take calls!" -ForegroundColor Green
 }
 
 # Function to cleanup on exit
@@ -573,6 +587,17 @@ function Main {
         
         # Show final instructions
         Show-FinalInstructions
+        
+        # Run verification
+        Write-Host ""
+        Write-Status "Running final system verification..."
+        try {
+            & .\verify-setup.ps1
+            Write-Success "System verification passed!"
+        }
+        catch {
+            Write-Warning "Some verification checks failed, but system may still work"
+        }
         
         # Keep script running to maintain ngrok tunnel
         if ($NgrokProcess -and -not $SkipNgrok) {

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import Link from 'next/link';
 
 const schema = z.object({
@@ -80,7 +80,7 @@ export default function ResendVerificationPage() {
                 disabled={isSubmitting || loading}
                 className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center"
               >
-                {(isSubmitting || loading) ? <LoadingSpinner size="small" /> : 'Send Verification Link'}
+                {(isSubmitting || loading) ? <LoadingSpinner size="sm" /> : 'Send Verification Link'}
               </button>
             </form>
             
