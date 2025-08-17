@@ -17,8 +17,7 @@ from app.core.database import get_db
 from app.services.auth import auth_service, security
 from app.services.voice_agent import voice_agent_service
 from app.services.twilio_service import twilio_service
-from app.services.conversation_relay import conversation_relay_handler
-from app.services.conversation_relay import conversation_relay_handler
+from app.services.conversation_relay import media_stream_handler
 from app.models.user import User
 from app.models.call import Call
 from app.models.tenant import Tenant
@@ -669,16 +668,16 @@ async def get_conversation_relay_status(
     }
 
 
-@router.websocket("/conversation-relay/{call_id}")
-async def conversation_relay_websocket(
+@router.websocket("/media-stream/{call_id}")
+async def media_stream_websocket(
     websocket: WebSocket,
     call_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Handle Twilio ConversationRelay WebSocket connection for real-time voice
+    Handle Twilio Media Streams WebSocket connection for real-time voice
     """
-    await conversation_relay_handler.handle_websocket_connection(websocket, call_id, db)
+    await media_stream_handler.handle_websocket_connection(websocket, call_id, db)
 
 
 @router.post("/conversation-relay/{call_id}/webhook")

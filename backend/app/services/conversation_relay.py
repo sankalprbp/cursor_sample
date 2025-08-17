@@ -1,6 +1,6 @@
 """
-Twilio ConversationRelay Handler
-Manages real-time voice conversations using Twilio's ConversationRelay API
+Twilio Media Streams Handler
+Manages real-time voice conversations using Twilio's Media Streams API
 """
 
 import asyncio
@@ -50,8 +50,8 @@ class ConnectionState:
         return datetime.utcnow() - self.last_activity > timedelta(minutes=timeout_minutes)
 
 
-class ConversationRelayHandler:
-    """Handles Twilio ConversationRelay WebSocket connections for real-time voice"""
+class MediaStreamHandler:
+    """Handles Twilio Media Streams WebSocket connections for real-time voice"""
     
     def __init__(self):
         self.active_connections: Dict[str, ConnectionState] = {}
@@ -483,4 +483,4 @@ class ConversationRelayHandler:
 
 
 # Global instance
-conversation_relay_handler = ConversationRelayHandler()
+media_stream_handler = MediaStreamHandler()
