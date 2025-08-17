@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 import uuid
 from datetime import datetime
 
@@ -21,6 +21,7 @@ from app.services.conversation_relay import media_stream_handler
 from app.models.user import User
 from app.models.call import Call
 from app.models.tenant import Tenant
+from app.services.mock_data import mock_data_service
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,46 @@ class ConversationResponse(BaseModel):
     response_text: str
     audio_response: str  # Base64 encoded
     context: dict
+
+
+class CallSummary(BaseModel):
+    """Summary information for a call"""
+    id: str
+    caller_number: str
+    status: str
+    direction: str
+    started_at: str
+    ended_at: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    summary: Optional[str] = None
+    transcript_count: Optional[int] = None
+    satisfaction_score: Optional[float] = None
+
+
+class CallListResponse(BaseModel):
+    """Response model for call list endpoints"""
+    calls: List[CallSummary]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+    demo: Optional[bool] = None
+    message: Optional[str] = None
+
+
+class CallDetailResponse(BaseModel):
+    """Response model for detailed call information"""
+    call: CallSummary
+    transcripts: List[dict]
+
+
+class TranscriptEntry(BaseModel):
+    """Individual transcript entry"""
+    id: str
+    speaker: str
+    text: str
+    timestamp: str
+    confidence: float
 
 
 @router.post("/calls/start", response_model=CallResponse)
@@ -325,52 +366,134 @@ async def end_call(
         )
 
 
-@router.get("/calls")
-async def list_calls(
-    limit: int = 50,
-    offset: int = 0,
-    status: Optional[str] = None,
+@router.get("/calls", response_model=CallListResponse)
+async def list_calls_demo(
+    limit: int = Field(50, ge=1, le=100, description="Number of calls to return (1-100)"),
+    offset: int = Field(0, ge=0, description="Number of calls to skip"),
+    status: Optional[str] = Field(None, description="Filter by call status")
+) -> CallListResponse:
+    """
+    List calls (public demo endpoint)
+    
+    This endpoint provides mock data for demonstration purposes.
+    In production, use /calls/authenticated for real data.
+    """
+    try:
+        # Validate pagination parameters
+        if limit < 1 or limit > 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Limit must be between 1 and 100"
+            )
+        
+        if offset < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Offset must be non-negative"
+            )
+        
+        # Validate status parameter
+        valid_statuses = ["active", "completed", "failed", "cancelled"]
+        if status and status not in valid_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Status must be one of: {', '.join(valid_statuses)}"
+            )
+        
+        # Get mock data
+        result = mock_data_service.get_mock_calls(limit, offset, status)
+        
+        # Add metadata for demo
+        result["demo"] = True
+        result["message"] = "This is demo data. Use /calls/authenticated for real data."
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in demo calls endpoint: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve demo calls"
+        )
+
+
+@router.get("/calls/authenticated", response_model=CallListResponse)
+async def list_calls_authenticated(
+    limit: int = Field(50, ge=1, le=100, description="Number of calls to return (1-100)"),
+    offset: int = Field(0, ge=0, description="Number of calls to skip"),
+    status: Optional[str] = Field(None, description="Filter by call status"),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
-) -> Any:
+) -> CallListResponse:
     """
-    List calls for the current user's tenant
+    List calls for authenticated users
     """
-    user = await auth_service.get_current_user(db, credentials)
-    
-    # Build query
-    stmt = select(Call).join(Tenant)
-    
-    if user.role != "super_admin":
-        stmt = stmt.where(Tenant.id == user.tenant_id)
-    
-    if status:
-        stmt = stmt.where(Call.status == status)
-    
-    stmt = stmt.order_by(Call.started_at.desc()).offset(offset).limit(limit)
-    
-    result = await db.execute(stmt)
-    calls = result.scalars().all()
-    
-    return {
-        "calls": [
-            {
-                "id": call.id,
-                "tenant_id": str(call.tenant_id),
-                "caller_number": call.caller_number,
-                "status": call.status,
-                "direction": call.direction,
-                "started_at": call.started_at.isoformat() if call.started_at else None,
-                "ended_at": call.ended_at.isoformat() if call.ended_at else None,
-                "duration_seconds": call.duration_seconds,
-                "summary": call.summary
-            }
-            for call in calls
-        ],
-        "total": len(calls),
-        "limit": limit,
-        "offset": offset
-    }
+    try:
+        user = await auth_service.get_current_user(db, credentials)
+        
+        # Validate status parameter
+        valid_statuses = ["active", "completed", "failed", "cancelled"]
+        if status and status not in valid_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Status must be one of: {', '.join(valid_statuses)}"
+            )
+        
+        # Build query
+        stmt = select(Call).join(Tenant)
+        
+        if user.role != "super_admin":
+            stmt = stmt.where(Tenant.id == user.tenant_id)
+        
+        if status:
+            stmt = stmt.where(Call.status == status)
+        
+        stmt = stmt.order_by(Call.started_at.desc()).offset(offset).limit(limit)
+        
+        # Get total count for pagination
+        count_stmt = select(Call).join(Tenant)
+        if user.role != "super_admin":
+            count_stmt = count_stmt.where(Tenant.id == user.tenant_id)
+        if status:
+            count_stmt = count_stmt.where(Call.status == status)
+        
+        result = await db.execute(stmt)
+        calls = result.scalars().all()
+        
+        count_result = await db.execute(count_stmt)
+        total_calls = len(count_result.scalars().all())
+        
+        call_summaries = []
+        for call in calls:
+            call_summaries.append(CallSummary(
+                id=call.id,
+                caller_number=call.caller_number,
+                status=call.status,
+                direction=call.direction or "inbound",
+                started_at=call.started_at.isoformat() if call.started_at else "",
+                ended_at=call.ended_at.isoformat() if call.ended_at else None,
+                duration_seconds=call.duration_seconds,
+                summary=call.summary
+            ))
+        
+        return CallListResponse(
+            calls=call_summaries,
+            total=total_calls,
+            limit=limit,
+            offset=offset,
+            has_more=offset + limit < total_calls
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving calls for user {user.id if 'user' in locals() else 'unknown'}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve calls"
+        )
 
 
 @router.get("/calls/{call_id}")
@@ -625,6 +748,57 @@ async def get_twilio_demo_status() -> Any:
         "configured": True,
         "demo_mode": True
     }
+
+
+@router.get("/demo/stats")
+async def get_demo_statistics() -> Any:
+    """
+    Get demo system statistics for dashboard
+    """
+    try:
+        stats = mock_data_service.get_system_stats()
+        stats["demo"] = True
+        stats["message"] = "This is demo data for demonstration purposes."
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Error retrieving demo statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve demo statistics"
+        )
+
+
+@router.get("/calls/{call_id}/demo", response_model=CallDetailResponse)
+async def get_demo_call_detail(call_id: str) -> CallDetailResponse:
+    """
+    Get detailed call information (demo endpoint)
+    """
+    try:
+        call = mock_data_service.get_mock_call_by_id(call_id)
+        if not call:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Call not found"
+            )
+        
+        transcripts = mock_data_service.get_mock_transcripts(call_id)
+        
+        call_summary = CallSummary(**call)
+        
+        return CallDetailResponse(
+            call=call_summary,
+            transcripts=transcripts
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving demo call detail for {call_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve call details"
+        )
 
 
 @router.websocket("/conversation-relay/{call_id}")

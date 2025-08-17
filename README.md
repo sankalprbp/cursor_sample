@@ -11,46 +11,51 @@ A working AI voice agent that can receive phone calls and have natural conversat
 - **Knowledge Integration**: AI can answer questions from your knowledge base
 - **Call Management**: Complete logging and analytics
 
-## 🚀 Quick Start (5 Minutes)
+## 🚀 One-Click Setup (2 Minutes!)
 
-### 1. Get Your API Keys
+### 1. Get Your API Keys (1 minute)
 
-You'll need accounts and API keys from:
+You need these 3 accounts (all have free tiers):
 - **OpenAI**: https://platform.openai.com/api-keys
 - **ElevenLabs**: https://elevenlabs.io/app/speech-synthesis  
 - **Twilio**: https://console.twilio.com/ (buy a phone number)
 
-### 2. Setup & Run
+### 2. Automated Setup & Run
 
-```bash
-# Clone and setup
+**Windows:**
+```powershell
 git clone <your-repo>
 cd voice-agent-platform
-
-# Configure your API keys
-cp .env.example .env
-# Edit .env with your actual API keys
-
-# Start the system
-docker-compose up --build
-
-# System will be ready at:
-# - Backend: http://localhost:8000
-# - Health Check: http://localhost:8000/health
-# - API Docs: http://localhost:8000/docs
+Copy-Item .env.example .env
+notepad .env  # Add your API keys
+.\setup-mvp.ps1  # Runs complete setup with ngrok
 ```
 
-### 3. Configure Twilio Webhooks
+**Mac/Linux:**
+```bash
+git clone <your-repo>
+cd voice-agent-platform
+cp .env.example .env
+nano .env  # Add your API keys
+./setup-mvp.sh  # Runs complete setup with ngrok
+```
 
-1. Go to [Twilio Console](https://console.twilio.com/)
-2. Navigate to **Phone Numbers > Active Numbers**
-3. Click your phone number
-4. Set **Voice Webhook**: `http://your-public-url:8000/api/v1/voice/twilio/webhook/{call_id}`
-5. Set **Status Callback**: `http://your-public-url:8000/api/v1/voice/twilio/status/{call_id}`
+### 3. Copy Webhook URLs (30 seconds)
 
-### 4. Test It!
+The setup script gives you exact URLs to copy into Twilio Console.
 
-Call your Twilio phone number and have a conversation with your AI agent!
+### 4. Test Your AI Agent!
+
+Call your Twilio phone number - your AI agent answers and has natural conversations!
+
+## 🎨 What You Get
+
+- 📞 **Working AI Phone Agent** - Answers calls and converses naturally
+- 🎯 **Beautiful Dashboard** - Real-time call monitoring at http://localhost:3000
+- 🌐 **Public Access** - Automatic ngrok tunnel for Twilio webhooks
+- 📊 **Call Analytics** - Complete transcripts and conversation logs
+- 🔍 **System Monitoring** - Health checks and error tracking
+- 📱 **Mobile Responsive** - Works perfectly on all devices
 
 ## 📋 Complete Setup Guide
 
