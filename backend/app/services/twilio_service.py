@@ -8,11 +8,14 @@ import asyncio
 from typing import Dict, Optional, Any
 from datetime import datetime
 import json
+from functools import wraps
+import time
 
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from urllib.parse import urlparse
 
 from app.core.config import settings
 from app.models.call import Call
@@ -22,25 +25,89 @@ from app.services.voice_agent import voice_agent_service
 logger = logging.getLogger(__name__)
 
 
+def retry_on_failure(max_retries: int = 3, delay: float = 1.0):
+    """Decorator to retry failed operations with exponential backoff"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        wait_time = delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {wait_time}s")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.error(f"All {max_retries + 1} attempts failed for {func.__name__}")
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
+
 class TwilioService:
     """Service for handling Twilio phone call integration"""
     
     def __init__(self):
         self.client = None
         self.is_configured = False
+        self._config_errors = []
+        
+        # Validate configuration
+        self._validate_configuration()
         
         # Initialize Twilio client if credentials are available
-        if (settings.TWILIO_ACCOUNT_SID and 
-            settings.TWILIO_AUTH_TOKEN and 
-            settings.TWILIO_PHONE_NUMBER):
+        if self.is_configured:
             try:
                 self.client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-                self.is_configured = True
                 logger.info("Twilio client initialized successfully")
+                
+                # Test the client with a simple API call
+                self._test_client_connection()
+                
             except Exception as e:
                 logger.error(f"Failed to initialize Twilio client: {e}")
                 self.is_configured = False
+                self._config_errors.append(f"Client initialization failed: {e}")
     
+    def _validate_configuration(self):
+        """Validate Twilio configuration and collect errors"""
+        missing_configs = []
+        
+        if not settings.TWILIO_ACCOUNT_SID:
+            missing_configs.append("TWILIO_ACCOUNT_SID")
+        elif not settings.TWILIO_ACCOUNT_SID.startswith('AC'):
+            self._config_errors.append("TWILIO_ACCOUNT_SID should start with 'AC'")
+            
+        if not settings.TWILIO_AUTH_TOKEN:
+            missing_configs.append("TWILIO_AUTH_TOKEN")
+            
+        if not settings.TWILIO_PHONE_NUMBER:
+            missing_configs.append("TWILIO_PHONE_NUMBER")
+        elif not settings.TWILIO_PHONE_NUMBER.startswith('+'):
+            self._config_errors.append("TWILIO_PHONE_NUMBER should start with '+'")
+        
+        if missing_configs:
+            self._config_errors.append(f"Missing required configuration: {', '.join(missing_configs)}")
+            logger.warning(f"Twilio configuration incomplete: {', '.join(missing_configs)}")
+        else:
+            self.is_configured = True
+    
+    def _test_client_connection(self):
+        """Test Twilio client connection"""
+        try:
+            # Simple API call to verify credentials
+            account = self.client.api.accounts(settings.TWILIO_ACCOUNT_SID).fetch()
+            logger.info(f"Twilio client connected successfully. Account: {account.friendly_name}")
+        except Exception as e:
+            logger.warning(f"Twilio client connection test failed: {e}")
+            # Don't mark as unconfigured since credentials might be valid but API temporarily unavailable
+    
+    @retry_on_failure(max_retries=2, delay=1.0)
     async def make_outbound_call(
         self, 
         to_number: str, 
@@ -48,6 +115,14 @@ class TwilioService:
         db: AsyncSession
     ) -> Dict[str, Any]:
         """Make an outbound call using Twilio"""
+        
+        # Validate inputs
+        if not to_number or not tenant_id:
+            raise ValueError("to_number and tenant_id are required")
+        
+        # Validate phone number format
+        if not to_number.startswith('+') or len(to_number) < 10:
+            raise ValueError("Invalid phone number format. Must start with '+' and be at least 10 digits")
         
         if not self.is_configured:
             raise HTTPException(
@@ -95,6 +170,16 @@ class TwilioService:
     ) -> str:
         """Handle incoming call and return TwiML response with ConversationRelay"""
         
+        # Validate inputs
+        if not from_number or not tenant_id:
+            raise ValueError("from_number and tenant_id are required")
+        
+        if not self.is_configured:
+            logger.error("Twilio service not configured for incoming call")
+            response = VoiceResponse()
+            response.say("Service temporarily unavailable. Please try again later.")
+            return str(response)
+        
         try:
             # Create call record
             call_id = await self._create_call_record(from_number, tenant_id, "inbound", db)
@@ -107,17 +192,25 @@ class TwilioService:
             # Generate TwiML response for ConversationRelay
             response = VoiceResponse()
             
-            # Set up ConversationRelay for real-time voice streaming
+            # Set up Twilio ConversationRelay for real-time AI voice conversations
             connect = response.connect()
-            stream = connect.stream(
-                url=f"wss://{settings.BASE_URL.replace('http://', '').replace('https://', '')}/api/v1/voice/conversation-relay/{call_id}"
+            
+            # Build WebSocket URL properly
+            parsed_url = urlparse(settings.BASE_URL)
+            ws_scheme = "wss" if parsed_url.scheme == "https" else "ws"
+            ws_url = f"{ws_scheme}://{parsed_url.netloc}/api/v1/voice/conversation-relay/{call_id}"
+            
+            conversation_relay = connect.conversation_relay(
+                url=ws_url,
+                voice="Polly.Joanna-Neural"  # Use neural voice for better quality
             )
             
-            # Configure stream parameters for optimal voice quality
-            stream.parameter(name="amd", value="false")  # Disable answering machine detection
-            stream.parameter(name="track", value="both_tracks")  # Track both inbound and outbound audio
+            # Configure ConversationRelay parameters for optimal AI conversation
+            conversation_relay.parameter(name="language", value="en-US")
+            conversation_relay.parameter(name="speech_timeout", value="3")
+            conversation_relay.parameter(name="max_speech_duration", value="30")
             
-            logger.info(f"ConversationRelay configured for call {call_id}")
+            logger.info(f"Twilio ConversationRelay configured for call {call_id}")
             
             return str(response)
             
@@ -136,18 +229,40 @@ class TwilioService:
         """Handle call status updates from Twilio"""
         
         try:
-            # Update call status in database
-            stmt = f"""
-                UPDATE calls 
-                SET status = '{status}', 
-                    updated_at = NOW()
-                WHERE id = '{call_id}'
-            """
-            await db.execute(stmt)
+            # Update call status in database using SQLAlchemy
+            from sqlalchemy import select, update
+            
+            # Update call status
+            stmt = update(Call).where(Call.id == call_id).values(
+                status=status,
+                updated_at=datetime.utcnow()
+            )
+            result = await db.execute(stmt)
+            
+            if result.rowcount == 0:
+                logger.warning(f"No call found with ID {call_id} for status update")
+                return
+            
             await db.commit()
             
-            # If call ended, end the conversation
+            # If call ended, end the conversation and calculate duration
             if status in ['completed', 'failed', 'busy', 'no-answer']:
+                # Update end time and calculate duration
+                call_stmt = select(Call).where(Call.id == call_id)
+                call_result = await db.execute(call_stmt)
+                call = call_result.scalar_one_or_none()
+                
+                if call and call.started_at:
+                    duration_seconds = int((datetime.utcnow() - call.started_at).total_seconds())
+                    
+                    end_stmt = update(Call).where(Call.id == call_id).values(
+                        ended_at=datetime.utcnow(),
+                        duration_seconds=duration_seconds
+                    )
+                    await db.execute(end_stmt)
+                    await db.commit()
+                
+                # End the conversation
                 await voice_agent_service.end_conversation(call_id, db)
                 
                 # Generate call summary
@@ -157,6 +272,7 @@ class TwilioService:
             
         except Exception as e:
             logger.error(f"Failed to update call status: {e}")
+            await db.rollback()
     
     async def _create_call_record(
         self, 
@@ -212,13 +328,12 @@ class TwilioService:
                 conversation_text
             )
             
-            # Update call record with summary
-            stmt = f"""
-                UPDATE calls 
-                SET summary = '{summary}', 
-                    ended_at = NOW()
-                WHERE id = '{call_id}'
-            """
+            # Update call record with summary using SQLAlchemy
+            from sqlalchemy import update
+            
+            stmt = update(Call).where(Call.id == call_id).values(
+                summary=summary
+            )
             await db.execute(stmt)
             await db.commit()
             
@@ -228,6 +343,16 @@ class TwilioService:
     def is_available(self) -> bool:
         """Check if Twilio service is available"""
         return self.is_configured
+    
+    def get_configuration_status(self) -> dict:
+        """Get detailed configuration status for debugging"""
+        return {
+            "is_configured": self.is_configured,
+            "has_client": self.client is not None,
+            "config_errors": self._config_errors,
+            "phone_number": settings.TWILIO_PHONE_NUMBER if self.is_configured else None,
+            "account_sid": settings.TWILIO_ACCOUNT_SID[:8] + "..." if settings.TWILIO_ACCOUNT_SID else None
+        }
 
 
 # Global instance
