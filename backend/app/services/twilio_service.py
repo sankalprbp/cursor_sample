@@ -93,7 +93,7 @@ class TwilioService:
         tenant_id: str,
         db: AsyncSession
     ) -> str:
-        """Handle incoming call and return TwiML response"""
+        """Handle incoming call and return TwiML response with ConversationRelay"""
         
         try:
             # Create call record
@@ -104,17 +104,20 @@ class TwilioService:
                 call_id, tenant_id, from_number, db
             )
             
-            # Generate TwiML response
+            # Generate TwiML response for ConversationRelay
             response = VoiceResponse()
             
-            # Add initial greeting
-            if context.messages:
-                greeting = context.messages[-1]["content"]
-                response.say(greeting, voice='alice')
-            
-            # Set up streaming for real-time conversation
+            # Set up ConversationRelay for real-time voice streaming
             connect = response.connect()
-            connect.stream(url=f"{settings.BASE_URL}/api/v1/voice/twilio/stream/{call_id}")
+            stream = connect.stream(
+                url=f"wss://{settings.BASE_URL.replace('http://', '').replace('https://', '')}/api/v1/voice/conversation-relay/{call_id}"
+            )
+            
+            # Configure stream parameters for optimal voice quality
+            stream.parameter(name="amd", value="false")  # Disable answering machine detection
+            stream.parameter(name="track", value="both_tracks")  # Track both inbound and outbound audio
+            
+            logger.info(f"ConversationRelay configured for call {call_id}")
             
             return str(response)
             
