@@ -5,7 +5,7 @@ Handles AI voice agent calls, conversations, and telephony integration
 
 import logging
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, Response, WebSocket, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -17,6 +17,8 @@ from app.core.database import get_db
 from app.services.auth import auth_service, security
 from app.services.voice_agent import voice_agent_service
 from app.services.twilio_service import twilio_service
+from app.services.conversation_relay import conversation_relay_handler
+from app.services.conversation_relay import conversation_relay_handler
 from app.models.user import User
 from app.models.call import Call
 from app.models.tenant import Tenant
@@ -624,3 +626,100 @@ async def get_twilio_demo_status() -> Any:
         "configured": True,
         "demo_mode": True
     }
+
+
+@router.websocket("/conversation-relay/{call_id}")
+async def conversation_relay_websocket(
+    websocket: WebSocket,
+    call_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle Twilio ConversationRelay WebSocket connection for real-time voice
+    """
+    logger.info(f"ConversationRelay WebSocket connection requested for call {call_id}")
+    
+    try:
+        # Handle the WebSocket connection
+        await conversation_relay_handler.handle_websocket_connection(
+            websocket, call_id, db
+        )
+    except Exception as e:
+        logger.error(f"ConversationRelay WebSocket error for call {call_id}: {e}")
+        try:
+            await websocket.close(code=1011, reason="Internal server error")
+        except Exception:
+            pass  # WebSocket might already be closed
+
+
+@router.get("/conversation-relay/status")
+async def get_conversation_relay_status(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Get ConversationRelay service status and active connections
+    """
+    user = await auth_service.get_current_user(db, credentials)
+    
+    return {
+        "active_connections": conversation_relay_handler.get_connection_count(),
+        "active_calls": conversation_relay_handler.get_active_calls(),
+        "service_status": "running"
+    }
+
+
+@router.websocket("/conversation-relay/{call_id}")
+async def conversation_relay_websocket(
+    websocket: WebSocket,
+    call_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle Twilio ConversationRelay WebSocket connection for real-time voice
+    """
+    await conversation_relay_handler.handle_websocket_connection(websocket, call_id, db)
+
+
+@router.post("/conversation-relay/{call_id}/webhook")
+async def conversation_relay_webhook(
+    call_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Handle ConversationRelay webhook events
+    """
+    try:
+        # Get request data
+        data = await request.json()
+        
+        # Log the event
+        logger.info(f"ConversationRelay webhook for call {call_id}: {data}")
+        
+        # Handle different event types
+        event_type = data.get("event")
+        
+        if event_type == "connected":
+            # ConversationRelay stream connected
+            logger.info(f"ConversationRelay connected for call {call_id}")
+        
+        elif event_type == "start":
+            # Stream started
+            logger.info(f"ConversationRelay stream started for call {call_id}")
+        
+        elif event_type == "stop":
+            # Stream stopped
+            logger.info(f"ConversationRelay stream stopped for call {call_id}")
+            
+            # End the conversation
+            await voice_agent_service.end_conversation(call_id, db)
+        
+        return {"status": "processed"}
+        
+    except Exception as e:
+        logger.error(f"ConversationRelay webhook error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed"
+        )
