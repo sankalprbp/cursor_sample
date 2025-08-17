@@ -22,6 +22,8 @@ from app.models.user import User
 from app.models.call import Call
 from app.models.tenant import Tenant
 from app.services.mock_data import mock_data_service
+from app.services.health_check import health_check_service
+from app.services.call_management import call_management_service
 
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,22 @@ class TranscriptEntry(BaseModel):
     text: str
     timestamp: str
     confidence: float
+
+
+class ServiceStatus(BaseModel):
+    """Individual service status"""
+    database: str
+    redis: str
+    backend: str
+
+
+class SystemStatusResponse(BaseModel):
+    """Response model for system status"""
+    status: str
+    services: ServiceStatus
+    stats: dict
+    demo_mode: bool
+    timestamp: str
 
 
 @router.post("/calls/start", response_model=CallResponse)
@@ -379,19 +397,6 @@ async def list_calls_demo(
     In production, use /calls/authenticated for real data.
     """
     try:
-        # Validate pagination parameters
-        if limit < 1 or limit > 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Limit must be between 1 and 100"
-            )
-        
-        if offset < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Offset must be non-negative"
-            )
-        
         # Validate status parameter
         valid_statuses = ["active", "completed", "failed", "cancelled"]
         if status and status not in valid_statuses:
@@ -400,14 +405,9 @@ async def list_calls_demo(
                 detail=f"Status must be one of: {', '.join(valid_statuses)}"
             )
         
-        # Get mock data
-        result = mock_data_service.get_mock_calls(limit, offset, status)
-        
-        # Add metadata for demo
-        result["demo"] = True
-        result["message"] = "This is demo data. Use /calls/authenticated for real data."
-        
-        return result
+        # Get demo data using service layer
+        result = await call_management_service.get_demo_calls(limit, offset, status)
+        return CallListResponse(**result)
         
     except HTTPException:
         raise
@@ -441,49 +441,20 @@ async def list_calls_authenticated(
                 detail=f"Status must be one of: {', '.join(valid_statuses)}"
             )
         
-        # Build query
-        stmt = select(Call).join(Tenant)
+        # Use service layer to get calls
+        result = await call_management_service.get_calls_for_user(
+            user, limit, offset, status, db
+        )
         
-        if user.role != "super_admin":
-            stmt = stmt.where(Tenant.id == user.tenant_id)
-        
-        if status:
-            stmt = stmt.where(Call.status == status)
-        
-        stmt = stmt.order_by(Call.started_at.desc()).offset(offset).limit(limit)
-        
-        # Get total count for pagination
-        count_stmt = select(Call).join(Tenant)
-        if user.role != "super_admin":
-            count_stmt = count_stmt.where(Tenant.id == user.tenant_id)
-        if status:
-            count_stmt = count_stmt.where(Call.status == status)
-        
-        result = await db.execute(stmt)
-        calls = result.scalars().all()
-        
-        count_result = await db.execute(count_stmt)
-        total_calls = len(count_result.scalars().all())
-        
-        call_summaries = []
-        for call in calls:
-            call_summaries.append(CallSummary(
-                id=call.id,
-                caller_number=call.caller_number,
-                status=call.status,
-                direction=call.direction or "inbound",
-                started_at=call.started_at.isoformat() if call.started_at else "",
-                ended_at=call.ended_at.isoformat() if call.ended_at else None,
-                duration_seconds=call.duration_seconds,
-                summary=call.summary
-            ))
+        # Convert to response model
+        call_summaries = [CallSummary(**call) for call in result["calls"]]
         
         return CallListResponse(
             calls=call_summaries,
-            total=total_calls,
-            limit=limit,
-            offset=offset,
-            has_more=offset + limit < total_calls
+            total=result["total"],
+            limit=result["limit"],
+            offset=result["offset"],
+            has_more=result["has_more"]
         )
         
     except HTTPException:
@@ -748,6 +719,44 @@ async def get_twilio_demo_status() -> Any:
         "configured": True,
         "demo_mode": True
     }
+
+
+@router.get("/system/status", response_model=SystemStatusResponse)
+async def get_system_status(db: AsyncSession = Depends(get_db)) -> SystemStatusResponse:
+    """
+    Public endpoint to check system status without authentication
+    """
+    try:
+        # Get actual system health status
+        health_status = await health_check_service.get_system_status(db)
+        
+        # Get demo stats for additional info
+        stats = mock_data_service.get_system_stats()
+        
+        return SystemStatusResponse(
+            status=health_status["status"],
+            services=ServiceStatus(
+                database=health_status["services"]["database"],
+                redis=health_status["services"]["redis"],
+                backend=health_status["services"]["backend"]
+            ),
+            stats=stats,
+            demo_mode=True,
+            timestamp=health_status["timestamp"]
+        )
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        return SystemStatusResponse(
+            status="degraded",
+            services=ServiceStatus(
+                database="unknown",
+                redis="unknown",
+                backend="running"
+            ),
+            stats={},
+            demo_mode=True,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
 
 
 @router.get("/demo/stats")

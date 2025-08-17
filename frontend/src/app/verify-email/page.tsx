@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -70,7 +70,7 @@ function ResendVerificationForm() {
           disabled={isSubmitting}
           className="bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center"
         >
-          {isSubmitting ? <LoadingSpinner size="small" /> : 'Resend'}
+          {isSubmitting ? <LoadingSpinner size="sm" /> : 'Resend'}
         </button>
       </div>
     </form>
@@ -115,7 +115,7 @@ function VerifyEmailContent() {
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       {status === 'verifying' && (
         <div className="text-center">
-          <LoadingSpinner size="large" />
+          <LoadingSpinner size="lg" />
           <p className="mt-4">Verifying your email address...</p>
         </div>
       )}
@@ -126,7 +126,7 @@ function VerifyEmailContent() {
           <p className="mb-4">Your email has been successfully verified.</p>
           <p className="text-gray-500">Redirecting to dashboard...</p>
           <div className="mt-4">
-            <LoadingSpinner size="small" />
+            <LoadingSpinner size="sm" />
           </div>
         </div>
       )}

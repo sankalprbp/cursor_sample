@@ -1,5 +1,4 @@
 "use client";
-
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminData } from '@/hooks/useAdminData';
@@ -25,7 +24,7 @@ export default function AdminPage() {
     refetch
   } = useAdminData();
 
-  // Access control check - ensure user has admin privileges
+  // Access control check
   if (user && user.role !== 'tenant_admin' && user.role !== 'super_admin') {
     return (
       <AuthGuard>

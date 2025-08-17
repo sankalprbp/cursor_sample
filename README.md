@@ -1,13 +1,13 @@
 # AI Voice Agent MVP 🤖📞
 
-A working AI voice agent that can receive phone calls and have natural conversations using OpenAI GPT, ElevenLabs voice synthesis, and Twilio ConversationRelay.
+A working AI voice agent that can receive phone calls and have natural conversations using OpenAI GPT, ElevenLabs voice synthesis, and Twilio Media Streams.
 
 ## 🎯 What This Does
 
 - **Answers Phone Calls**: Real AI agent that picks up when someone calls
 - **Natural Conversations**: Uses OpenAI GPT for intelligent responses
 - **Realistic Voice**: ElevenLabs provides human-like speech synthesis
-- **Real-time Processing**: Twilio ConversationRelay for live voice streaming
+- **Real-time Processing**: Twilio Media Streams for live voice streaming
 - **Knowledge Integration**: AI can answer questions from your knowledge base
 - **Call Management**: Complete logging and analytics
 
