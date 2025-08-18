@@ -25,6 +25,7 @@ elevenlabs==0.2.26
 pydub==0.25.1
 
 # Audio Processing
+PyAudio==0.2.14
 ffmpeg-python==0.2.0
 
 # HTTP Clients
