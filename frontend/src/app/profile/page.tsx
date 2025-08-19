@@ -6,7 +6,6 @@ import * as z from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ToastProvider';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 
 const schema = z.object({
@@ -45,7 +44,6 @@ export default function ProfilePage() {
 
 
   return (
-    <AuthGuard>
     <div className="p-4 max-w-md mx-auto">
       <h1 className="text-2xl font-bold mb-4">My Profile</h1>
       
@@ -103,6 +101,5 @@ export default function ProfilePage() {
         )}
       </form>
     </div>
-    </AuthGuard>
   );
 }

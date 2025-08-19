@@ -61,6 +61,10 @@ if [[ -z "$TWILIO_PHONE_NUMBER" || "$TWILIO_PHONE_NUMBER" == "+1234567890" ]]; t
     MISSING_KEYS+=("TWILIO_PHONE_NUMBER")
 fi
 
+if [[ -z "$NGROK_AUTH_TOKEN" || "$NGROK_AUTH_TOKEN" == "your-ngrok-auth-token-here" ]]; then
+    MISSING_KEYS+=("NGROK_AUTH_TOKEN")
+fi
+
 if [ ${#MISSING_KEYS[@]} -ne 0 ]; then
     echo "❌ Missing required API keys in .env file:"
     for key in "${MISSING_KEYS[@]}"; do
@@ -71,16 +75,11 @@ if [ ${#MISSING_KEYS[@]} -ne 0 ]; then
     echo "   - OpenAI: https://platform.openai.com/api-keys"
     echo "   - ElevenLabs: https://elevenlabs.io/app/speech-synthesis"
     echo "   - Twilio: https://console.twilio.com/"
+    echo "   - Ngrok: https://dashboard.ngrok.com/get-started/your-authtoken"
     exit 1
 fi
 
 echo "✅ Configuration validated"
-
-# Function to get public IP for webhook URLs
-get_public_ip() {
-    PUBLIC_IP=$(curl -s --max-time 5 https://ipinfo.io/ip 2>/dev/null || echo "localhost")
-    echo $PUBLIC_IP
-}
 
 # Start the application
 echo ""
@@ -134,30 +133,71 @@ else
     echo "⚠️  Redis connection issue"
 fi
 
-# Get public IP for webhook configuration
-PUBLIC_IP=$(get_public_ip)
+# Function to set up and run ngrok
+setup_ngrok() {
+    echo "🔗 Setting up ngrok..."
 
-echo ""
-echo "🎉 AI Voice Agent MVP is running!"
-echo ""
-echo "🌐 Access URLs:"
-echo "   • Backend API: http://localhost:8000"
-echo "   • API Documentation: http://localhost:8000/docs"
-echo "   • Health Check: http://localhost:8000/health"
-echo ""
-echo "📞 Your Twilio Phone Number: $TWILIO_PHONE_NUMBER"
-echo ""
-echo "🔗 Twilio Webhook Configuration:"
-echo "   Go to: https://console.twilio.com/"
-echo "   Navigate to: Phone Numbers > Manage > Active numbers"
-echo "   Click your number: $TWILIO_PHONE_NUMBER"
-echo "   Set Voice Webhook to:"
-echo "   http://$PUBLIC_IP:8000/api/v1/voice/twilio/webhook/{call_id}"
-echo ""
-echo "💡 For local testing with ngrok:"
-echo "   1. Install ngrok: https://ngrok.com/download"
-echo "   2. Run: ngrok http 8000"
-echo "   3. Use the ngrok HTTPS URL for Twilio webhooks"
+    # Kill any existing ngrok process
+    killall ngrok > /dev/null 2>&1 || true
+    sleep 2
+
+    # Install ngrok if not present
+    if ! command -v ngrok &> /dev/null; then
+        echo "   • ngrok not found, installing..."
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+            ZIP_FILE="ngrok-v3-stable-linux-amd64.zip"
+        elif [ "$ARCH" = "aarch64" ]; then
+            ZIP_FILE="ngrok-v3-stable-linux-arm64.zip"
+        else
+            echo "   • Unsupported architecture: $ARCH"
+            exit 1
+        fi
+        wget "https://bin.equinox.io/c/4VmDzA7iaHb/$ZIP_FILE"
+        unzip "$ZIP_FILE"
+        sudo mv ngrok /usr/local/bin
+        rm "$ZIP_FILE"
+    fi
+
+    # Authenticate ngrok
+    ngrok authtoken "$NGROK_AUTH_TOKEN"
+
+    # Start ngrok in the background
+    ngrok http 8000 --log=stdout > ngrok.log &
+    sleep 5 # Wait for ngrok to start
+
+    # Get public URL from ngrok API
+    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[a-zA-Z0-9.-]*\.ngrok-free.app')
+
+    if [ -z "$NGROK_URL" ]; then
+        echo "   • ❌ Failed to get ngrok public URL. Check ngrok.log for errors."
+        exit 1
+    fi
+
+    # Update .env file with the new BASE_URL
+    sed -i "s|^BASE_URL=.*|BASE_URL=$NGROK_URL|" .env
+
+    echo "   • ✅ ngrok is running and exposed at: $NGROK_URL"
+    echo ""
+    echo "🎉 AI Voice Agent MVP is running!"
+    echo ""
+    echo "🌐 Access URLs:"
+    echo "   • Public API: $NGROK_URL"
+    echo "   • Local API: http://localhost:8000"
+    echo "   • API Documentation: $NGROK_URL/docs"
+    echo ""
+    echo "📞 Your Twilio Phone Number: $TWILIO_PHONE_NUMBER"
+    echo ""
+    echo "🔗 Twilio Webhook Configuration:"
+    echo "   Go to: https://console.twilio.com/"
+    echo "   Navigate to: Phone Numbers > Manage > Active numbers"
+    echo "   Click your number: $TWILIO_PHONE_NUMBER"
+    echo "   Set Voice Webhook to:"
+    echo "   $NGROK_URL/api/v1/voice/twilio/webhook/{call_id}"
+}
+
+# Set up ngrok
+setup_ngrok
 echo ""
 echo "🧪 Testing Commands:"
 echo "   • Health check: curl http://localhost:8000/health"
