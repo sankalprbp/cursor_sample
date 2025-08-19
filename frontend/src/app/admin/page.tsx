@@ -3,7 +3,6 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminData } from '@/hooks/useAdminData';
-import AuthGuard from '@/components/AuthGuard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { UserRow } from '@/components/admin/UserRow';
 import { ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -25,33 +24,10 @@ export default function AdminPage() {
     refetch
   } = useAdminData();
 
-  // Access control check - ensure user has admin privileges
-  if (user && user.role !== 'tenant_admin' && user.role !== 'super_admin') {
-    return (
-      <AuthGuard>
-        <div className="p-8">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Access Denied</h3>
-                <p className="mt-1 text-sm text-red-700">
-                  You need admin privileges to view this page. Please contact your administrator.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </AuthGuard>
-    );
-  }
 
   // Error state
   if (error) {
     return (
-      <AuthGuard>
         <div className="p-8">
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
@@ -71,12 +47,10 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
-      </AuthGuard>
     );
   }
 
   return (
-    <AuthGuard>
       <div className="p-8 max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -199,6 +173,5 @@ export default function AdminPage() {
           </div>
         )}
       </div>
-    </AuthGuard>
   );
 }

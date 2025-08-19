@@ -1,13 +1,11 @@
 "use client";
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   return (
-    <AuthGuard>
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Settings</h1>
       
@@ -33,6 +31,5 @@ export default function SettingsPage() {
       
       <p>Configuration options will go here.</p>
     </div>
-    </AuthGuard>
   );
 }
