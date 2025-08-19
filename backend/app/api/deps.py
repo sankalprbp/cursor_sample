@@ -30,39 +30,30 @@ async def get_db() -> AsyncSession:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Get current authenticated user from JWT token"""
+    """
+    Get a default user to bypass authentication for public dashboard.
+    This function will fetch the 'admin@demo.com' user and return it.
+    """
     
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    try:
-        token_data = await auth_service.verify_token(
-            credentials.credentials,
-            token_type="access",
-        )
-        if not token_data:
-            raise credentials_exception
-        user_id = token_data.user_id
-    except JWTError:
-        raise credentials_exception
-    
-    # Get user from database
+    # Fetch the default tenant admin user
     user_service = UserService()
-    user = await user_service.get_user(db, UUID(user_id))
+    user = await user_service.get_user_by_email(db, "admin@demo.com")
     
     if user is None:
-        raise credentials_exception
+        # This might happen if sample data hasn't been created yet.
+        # In a real scenario, we might want to create it here, but for now,
+        # we'll raise an exception to make it clear that the default user is missing.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Default user 'admin@demo.com' not found. Please ensure sample data is loaded.",
+        )
     
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive user"
+            detail="Default user is not active."
         )
     
     return user
