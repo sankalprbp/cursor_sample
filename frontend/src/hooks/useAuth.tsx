@@ -3,10 +3,13 @@ import { useState, useEffect, useContext, createContext } from 'react';
 import api from '@/services/api';
 import { AxiosError } from 'axios';
 
-interface User {
+export interface UserProfile {
   id: string;
+  name: string;
   email: string;
-  username: string;
+  phone?: string;
+  avatarUrl?: string;
+  username?: string;
   role?: string;
   first_name?: string;
   last_name?: string;
@@ -17,16 +20,20 @@ interface User {
   updated_at?: string;
 }
 
-interface AuthContextType {
-  user: User | null;
+export type UpdateProfileInput = Partial<Pick<UserProfile, 'name' | 'phone' | 'avatarUrl'>>;
+
+export interface AuthContextType {
+  user: UserProfile | null;
   loading: boolean;
   error: string | null;
+  logout: () => void;
+  updateProfile: (input: UpdateProfileInput) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setLoading(true);
         const res = await api.get('/api/v1/auth/me');
-        setUser(res.data);
+        const data = res.data;
+        const name =
+          data.name ||
+          [data.first_name, data.last_name].filter(Boolean).join(' ') ||
+          data.username;
+        setUser({ ...data, name });
         setError(null);
       } catch (err) {
         console.error('Error fetching default user profile:', err);
@@ -49,12 +61,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchDefaultUser();
   }, []);
 
+  const logout = () => {
+    setUser(null);
+  };
+
+  const updateProfile: AuthContextType['updateProfile'] = async (input) => {
+    try {
+      const payload = {
+        name: input.name?.trim(),
+        phone: input.phone?.trim(),
+        avatarUrl: input.avatarUrl?.trim(),
+      };
+
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          return { ok: false, error: 'Unauthorized' };
+        }
+        const text = await res.text().catch(() => '');
+        return { ok: false, error: text || `HTTP ${res.status}` };
+      }
+
+      const updated: UserProfile = await res.json();
+      setUser((prev) => ({ ...(prev ?? updated), ...updated }));
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Unknown error' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading,
-      error,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        logout,
+        updateProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
