@@ -4,9 +4,10 @@ Main FastAPI application
 """
 
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -19,6 +20,7 @@ from app.core.database import engine, Base
 from sqlalchemy import text
 from app.core.database_init import create_tables, create_sample_data
 from app.core.redis_client import redis_client
+from app.core.minio_client import get_minio_client
 from app.api.v1.router import api_router
 from app.websocket.connection_manager import ConnectionManager
 
@@ -137,28 +139,41 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
+@app.get("/healthz")
+async def health_check() -> dict:
+    """Comprehensive health check endpoint"""
+    db_ok = redis_ok = minio_ok = False
+
     try:
-        # Check database connection
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        
-        # Check Redis connection
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    try:
         await redis_client.ping()
-        
-        return {
-            "status": "healthy",
-            "version": "1.0.0",
-            "environment": settings.ENVIRONMENT,
-            "services": {
-                "database": "connected",
-                "redis": "connected",
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+        redis_ok = True
+    except Exception:
+        redis_ok = False
+
+    minio_client = get_minio_client()
+    if minio_client:
+        try:
+            await asyncio.to_thread(minio_client.list_buckets)
+            minio_ok = True
+        except Exception:
+            minio_ok = False
+    else:
+        minio_ok = None
+
+    status = "ok" if all(x is not False for x in (db_ok, redis_ok, minio_ok)) else "error"
+    return {
+        "status": status,
+        "database": db_ok,
+        "redis": redis_ok,
+        "minio": minio_ok,
+    }
 
 
 @app.get("/")
@@ -168,7 +183,7 @@ async def root():
         "message": "Voice Agent Platform API",
         "version": "1.0.0",
         "docs": "/docs",
-        "health": "/health",
+        "health": "/healthz",
     }
 
 
