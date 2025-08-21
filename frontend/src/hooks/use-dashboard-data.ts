@@ -102,9 +102,9 @@ export const useDashboardData = (): UseDashboardDataReturn => {
         ...healthData,
         status: healthData.status as SystemStatusType,
         services: {
+          ...healthData.services,
           database: healthData.services?.database || 'unknown',
-          redis: healthData.services?.redis || 'unknown',
-          ...healthData.services
+          redis: healthData.services?.redis || 'unknown'
         }
       });
     }
