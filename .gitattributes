@@ -16,6 +16,7 @@
 *.conf text eol=lf
 *.cfg text eol=lf
 *.ini text eol=lf
+.env* text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout
 *.bat text eol=crlf
