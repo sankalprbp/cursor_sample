@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+
+    # MinIO / S3-compatible storage
+    MINIO_ENDPOINT: str = "http://minio:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_REGION: str = "us-east-1"
     
     # API Keys
     OPENAI_API_KEY: str = "sk-placeholder-key"
