@@ -6,11 +6,19 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "type-check": "tsc --noEmit"
+    "test:coverage": "jest --coverage",
+    "type-check": "tsc --noEmit",
+    "type-check:prod": "tsc --project tsconfig.prod.json --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "clean": "rm -rf .next out",
+    "analyze": "ANALYZE=true npm run build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

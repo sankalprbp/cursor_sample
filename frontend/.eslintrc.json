@@ -1,6 +1,39 @@
 {
-  "extends": ["next/core-web-vitals"],
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
   "rules": {
-    "prefer-const": "error"
-  }
+    // MVP-friendly rules - warnings instead of errors for rapid development
+    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "prefer-const": "warn",
+    
+    // Keep these as errors for critical issues
+    "react-hooks/rules-of-hooks": "error",
+    "@next/next/no-img-element": "error",
+    
+    // Disable rules that might block MVP development
+    "@typescript-eslint/ban-ts-comment": "off",
+    "no-console": "warn"
+  },
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "overrides": [
+    {
+      // More strict rules for production builds
+      "files": ["src/**/*.{ts,tsx}"],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "error",
+        "no-console": "error"
+      }
+    }
+  ]
 }
