@@ -133,13 +133,17 @@ class KnowledgeService:
         query: str, 
         db: AsyncSession,
         knowledge_base_id: Optional[str] = None,
-        limit: int = 5
+        limit: int = 5,
+        conversation_context: Optional[List[Dict]] = None
     ) -> List[Dict[str, Any]]:
-        """Search knowledge base using semantic similarity"""
+        """Search knowledge base using semantic similarity with conversation context"""
         
         try:
+            # Enhance query with conversation context
+            enhanced_query = await self._enhance_query_with_context(query, conversation_context)
+            
             # Get query embedding
-            query_embedding = await self._get_text_embedding(query)
+            query_embedding = await self._get_text_embedding(enhanced_query)
             
             # Build base query
             stmt = select(KnowledgeDocument).join(KnowledgeBase).where(
@@ -404,6 +408,239 @@ class KnowledgeService:
         union = query_words.union(content_words)
         
         return len(intersection) / len(union) if union else 0.0
+    
+    async def _enhance_query_with_context(
+        self, 
+        query: str, 
+        conversation_context: Optional[List[Dict]]
+    ) -> str:
+        """Enhance search query with conversation context for better relevance"""
+        
+        if not conversation_context:
+            return query
+        
+        try:
+            # Extract recent conversation topics
+            recent_messages = conversation_context[-6:]  # Last 6 messages
+            conversation_text = " ".join([
+                msg.get("content", "") for msg in recent_messages 
+                if msg.get("role") in ["user", "assistant"]
+            ])
+            
+            # Use OpenAI to extract key topics and enhance query
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Extract key topics and context from the conversation to enhance the search query. Return only the enhanced query, no explanation."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Original query: {query}\n\nConversation context: {conversation_text}\n\nEnhanced query:"
+                    }
+                ],
+                max_tokens=100,
+                temperature=0.3
+            )
+            
+            enhanced_query = response.choices[0].message.content.strip()
+            logger.info(f"Enhanced query: '{query}' -> '{enhanced_query}'")
+            return enhanced_query
+            
+        except Exception as e:
+            logger.error(f"Query enhancement error: {e}")
+            return query
+    
+    async def search_knowledge_for_conversation(
+        self,
+        tenant_id: str,
+        user_message: str,
+        conversation_history: List[Dict],
+        db: AsyncSession,
+        limit: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Search knowledge base specifically optimized for conversation context"""
+        
+        try:
+            # Analyze conversation for intent and topics
+            intent_analysis = await self._analyze_conversation_intent(
+                user_message, conversation_history
+            )
+            
+            # Search with enhanced context
+            results = await self.search_knowledge(
+                tenant_id=tenant_id,
+                query=user_message,
+                db=db,
+                limit=limit,
+                conversation_context=conversation_history
+            )
+            
+            # Re-rank results based on conversation relevance
+            if results and intent_analysis:
+                results = await self._rerank_by_conversation_relevance(
+                    results, intent_analysis, conversation_history
+                )
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Conversation knowledge search error: {e}")
+            return []
+    
+    async def _analyze_conversation_intent(
+        self,
+        user_message: str,
+        conversation_history: List[Dict]
+    ) -> Dict[str, Any]:
+        """Analyze conversation to understand user intent and context"""
+        
+        try:
+            recent_context = conversation_history[-8:] if conversation_history else []
+            context_text = " ".join([
+                msg.get("content", "") for msg in recent_context
+                if msg.get("role") in ["user", "assistant"]
+            ])
+            
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Analyze the conversation to extract:
+                        1. Primary intent (question, request, complaint, etc.)
+                        2. Key topics mentioned
+                        3. Urgency level (low, medium, high)
+                        4. Information type needed (factual, procedural, troubleshooting, etc.)
+                        
+                        Return as JSON with keys: intent, topics, urgency, info_type"""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Current message: {user_message}\n\nConversation context: {context_text}"
+                    }
+                ],
+                max_tokens=200,
+                temperature=0.1
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            
+            # Try to parse as JSON, fallback to basic analysis
+            try:
+                return json.loads(analysis_text)
+            except json.JSONDecodeError:
+                return {
+                    "intent": "question",
+                    "topics": [user_message.split()[:3]],  # First 3 words as topics
+                    "urgency": "medium",
+                    "info_type": "factual"
+                }
+                
+        except Exception as e:
+            logger.error(f"Intent analysis error: {e}")
+            return {
+                "intent": "question",
+                "topics": [],
+                "urgency": "medium",
+                "info_type": "factual"
+            }
+    
+    async def _rerank_by_conversation_relevance(
+        self,
+        results: List[Dict[str, Any]],
+        intent_analysis: Dict[str, Any],
+        conversation_history: List[Dict]
+    ) -> List[Dict[str, Any]]:
+        """Re-rank search results based on conversation context and intent"""
+        
+        try:
+            # Extract conversation topics
+            conversation_topics = set()
+            for msg in conversation_history[-10:]:  # Last 10 messages
+                if msg.get("role") == "user":
+                    words = msg.get("content", "").lower().split()
+                    conversation_topics.update(words)
+            
+            # Re-score results
+            for result in results:
+                content_words = set(result["content"].lower().split())
+                
+                # Base similarity score
+                base_score = result["similarity_score"]
+                
+                # Boost for conversation topic overlap
+                topic_overlap = len(conversation_topics.intersection(content_words))
+                topic_boost = min(topic_overlap * 0.1, 0.3)  # Max 30% boost
+                
+                # Boost based on intent type
+                intent_boost = 0.0
+                if intent_analysis.get("urgency") == "high":
+                    intent_boost += 0.1
+                
+                # Boost for procedural content if user needs help
+                if intent_analysis.get("info_type") == "procedural":
+                    if any(word in result["content"].lower() for word in ["how", "step", "process", "procedure"]):
+                        intent_boost += 0.15
+                
+                # Calculate final score
+                result["conversation_relevance_score"] = base_score + topic_boost + intent_boost
+            
+            # Sort by conversation relevance
+            results.sort(key=lambda x: x.get("conversation_relevance_score", 0), reverse=True)
+            return results
+            
+        except Exception as e:
+            logger.error(f"Re-ranking error: {e}")
+            return results
+    
+    async def format_knowledge_for_conversation(
+        self,
+        knowledge_results: List[Dict[str, Any]],
+        user_question: str,
+        conversation_context: Optional[List[Dict]] = None
+    ) -> str:
+        """Format knowledge base results for natural conversation response"""
+        
+        if not knowledge_results:
+            return ""
+        
+        try:
+            # Combine relevant knowledge
+            combined_knowledge = "\n\n".join([
+                f"From {result['filename']}: {result['content'][:300]}..."
+                for result in knowledge_results[:3]  # Top 3 results
+            ])
+            
+            # Use OpenAI to format for conversation
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Format the knowledge base information into a natural, conversational response. 
+                        Make it sound helpful and personal, not like reading from a manual. 
+                        Keep it concise but informative."""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"User asked: {user_question}\n\nKnowledge base info:\n{combined_knowledge}\n\nConversational response:"
+                    }
+                ],
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            formatted_response = response.choices[0].message.content.strip()
+            return formatted_response
+            
+        except Exception as e:
+            logger.error(f"Knowledge formatting error: {e}")
+            # Fallback to simple formatting
+            if knowledge_results:
+                return f"Based on our information: {knowledge_results[0]['content'][:200]}..."
+            return ""
 
 
 # Global knowledge service instance

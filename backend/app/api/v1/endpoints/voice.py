@@ -778,6 +778,66 @@ async def get_demo_statistics() -> Any:
         )
 
 
+@router.get("/metrics/system")
+async def get_system_metrics(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Get real-time system metrics
+    """
+    try:
+        user = await auth_service.get_current_user(db, credentials)
+        
+        from app.services.metrics import metrics_collector
+        
+        system_status = metrics_collector.get_system_status()
+        
+        return {
+            "status": "success",
+            "data": system_status,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving system metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve system metrics"
+        )
+
+
+@router.get("/metrics/services/{service_name}")
+async def get_service_metrics(
+    service_name: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Get metrics for a specific service
+    """
+    try:
+        user = await auth_service.get_current_user(db, credentials)
+        
+        from app.services.metrics import metrics_collector
+        
+        service_metrics = metrics_collector.get_service_metrics(service_name)
+        
+        return {
+            "status": "success",
+            "service": service_name,
+            "data": service_metrics,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving service metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve service metrics"
+        )
+
+
 @router.get("/calls/{call_id}/demo", response_model=CallDetailResponse)
 async def get_demo_call_detail(call_id: str) -> CallDetailResponse:
     """

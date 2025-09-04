@@ -103,7 +103,22 @@ The goal is to create a functional demo where someone can call a phone number, h
 6. WHEN CPU usage exceeds 80% THEN the system SHALL log performance warnings
 7. WHEN handling concurrent calls THEN the system SHALL support at least 5 simultaneous conversations
 
-### Requirement 8: Basic Analytics and Monitoring
+### Requirement 8: Simple Dashboard Interface
+
+**User Story:** As a developer/tester, I want a simple web dashboard to monitor the voice agent system and test its functionality, so that I can easily see system status and initiate test calls.
+
+#### Acceptance Criteria
+
+1. WHEN accessing the dashboard THEN it SHALL load without requiring any authentication
+2. WHEN the dashboard loads THEN it SHALL display the current system status (all services up/down)
+3. WHEN the dashboard is viewed THEN it SHALL show real-time call metrics (active calls, total calls today)
+4. WHEN a call is in progress THEN the dashboard SHALL display live call information and conversation
+5. WHEN viewing call history THEN the dashboard SHALL show recent calls with basic details
+6. WHEN testing the system THEN the dashboard SHALL display the phone number to call
+7. WHEN services have issues THEN the dashboard SHALL clearly indicate which services are down
+8. WHEN the dashboard is refreshed THEN it SHALL update with current real-time data
+
+### Requirement 9: Basic Analytics and Monitoring
 
 **User Story:** As a system administrator, I want to monitor system performance and call metrics, so that I can ensure the system is working properly and identify issues.
 
@@ -111,7 +126,7 @@ The goal is to create a functional demo where someone can call a phone number, h
 
 1. WHEN calls are processed THEN the system SHALL track call volume, duration, and success rates
 2. WHEN API calls are made THEN the system SHALL monitor response times and error rates
-3. WHEN the system is running THEN it SHALL provide real-time status via a simple dashboard endpoint
+3. WHEN the system is running THEN it SHALL provide real-time status via API endpoints for the dashboard
 4. WHEN errors occur THEN they SHALL be categorized and counted for analysis
 5. WHEN performance degrades THEN the system SHALL log warnings with relevant metrics
 6. WHEN daily operations complete THEN the system SHALL generate a summary report

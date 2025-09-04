@@ -23,6 +23,12 @@ graph TB
     I --> J
     E -->|Audio Response| C
     C -->|Audio| A
+    
+    K[Simple Dashboard] --> L[Dashboard API Endpoints]
+    L --> J
+    L --> M[Real-time WebSocket]
+    E --> M
+    I --> M
 ```
 
 ### System Components
@@ -61,6 +67,16 @@ graph TB
   - Document search and retrieval
   - Context-aware information extraction
   - Fallback handling for missing information
+
+#### 5. Simple Dashboard Interface
+- **Purpose**: Provide a web interface for monitoring and testing the voice agent
+- **Implementation**: Next.js frontend with real-time updates
+- **Key Features**:
+  - No authentication required
+  - Real-time call monitoring
+  - System status display
+  - Call history and metrics
+  - Test phone number display
 
 ## Components and Interfaces
 
@@ -111,6 +127,19 @@ class KnowledgeQueryEngine:
     async def search_knowledge(self, query: str, tenant_id: str = None)
     async def extract_relevant_context(self, documents: list, query: str)
     async def format_for_conversation(self, knowledge: dict)
+```
+
+### 5. Dashboard API Service
+
+```python
+class DashboardService:
+    """Provides API endpoints for dashboard functionality"""
+    
+    async def get_system_status(self)
+    async def get_active_calls(self)
+    async def get_call_metrics(self, time_range: str = "today")
+    async def get_recent_calls(self, limit: int = 10)
+    async def get_service_health(self)
 ```
 
 ## Data Models
@@ -222,6 +251,68 @@ class ServiceFailureHandler:
 - **Knowledge Base**: Test accuracy of knowledge-based responses
 - **Error Scenarios**: Manually trigger error conditions to test handling
 
+## Dashboard Architecture
+
+### Frontend Components
+
+```typescript
+// Dashboard main page component
+interface DashboardProps {
+  systemStatus: SystemStatus;
+  activeCalls: CallSession[];
+  recentCalls: CallSession[];
+  metrics: DashboardMetrics;
+}
+
+// Real-time WebSocket hook for live updates
+interface UseDashboardData {
+  systemStatus: SystemStatus;
+  activeCalls: CallSession[];
+  metrics: DashboardMetrics;
+  isConnected: boolean;
+}
+```
+
+### Dashboard API Endpoints
+
+```python
+# Dashboard router in FastAPI
+@router.get("/dashboard/status")
+async def get_system_status() -> SystemStatusResponse
+
+@router.get("/dashboard/calls/active")
+async def get_active_calls() -> List[CallSessionResponse]
+
+@router.get("/dashboard/calls/recent")
+async def get_recent_calls(limit: int = 10) -> List[CallSessionResponse]
+
+@router.get("/dashboard/metrics")
+async def get_dashboard_metrics() -> DashboardMetricsResponse
+
+@router.websocket("/dashboard/live")
+async def dashboard_websocket(websocket: WebSocket)
+```
+
+### Dashboard Data Models
+
+```python
+class DashboardMetrics(BaseModel):
+    total_calls_today: int
+    active_calls_count: int
+    average_call_duration: float
+    success_rate: float
+    api_response_times: Dict[str, float]
+    error_counts: Dict[str, int]
+
+class SystemStatus(BaseModel):
+    twilio_status: str  # "healthy", "degraded", "down"
+    openai_status: str
+    elevenlabs_status: str
+    database_status: str
+    overall_status: str
+    last_updated: datetime
+```
+
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure (Week 1)
@@ -238,18 +329,18 @@ class ServiceFailureHandler:
 4. Implement basic knowledge base querying
 5. Add error handling and fallbacks
 
-### Phase 3: Optimization and Testing (Week 3)
-1. Optimize response times and audio quality
-2. Implement comprehensive error handling
-3. Add performance monitoring and metrics
-4. Conduct thorough testing (unit, integration, manual)
-5. Create deployment documentation
+### Phase 3: Dashboard and Monitoring (Week 3)
+1. Create dashboard API endpoints for system monitoring
+2. Build simple Next.js dashboard interface
+3. Implement real-time WebSocket updates for dashboard
+4. Add comprehensive error handling and service health checks
+5. Create dashboard deployment configuration
 
-### Phase 4: Demo Preparation (Week 4)
-1. Set up demo environment with sample knowledge base
-2. Create monitoring dashboard for demo
-3. Prepare demo scripts and scenarios
-4. Conduct final testing and bug fixes
+### Phase 4: Testing and Demo (Week 4)
+1. Conduct thorough testing (unit, integration, manual)
+2. Set up demo environment with sample knowledge base
+3. Optimize response times and audio quality
+4. Prepare demo scripts and scenarios
 5. Document demo setup and usage
 
 ## Configuration Requirements
@@ -278,6 +369,11 @@ BASE_URL=https://your-domain.com
 DATABASE_URL=postgresql://user:pass@localhost/db
 REDIS_URL=redis://localhost:6379/0
 LOG_LEVEL=INFO
+
+# Dashboard Configuration
+DASHBOARD_ENABLED=true
+DASHBOARD_REFRESH_INTERVAL=5000  # milliseconds
+DASHBOARD_MAX_RECENT_CALLS=50
 ```
 
 ### Twilio ConversationRelay Setup

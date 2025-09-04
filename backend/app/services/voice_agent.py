@@ -6,6 +6,7 @@ Core service for handling real-time AI phone conversations
 import asyncio
 import json
 import logging
+import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -95,6 +96,10 @@ class VoiceAgentService:
         # Store active conversation
         self.active_conversations[call_id] = context
         
+        # Start metrics tracking
+        from app.services.metrics import metrics_collector
+        await metrics_collector.start_call_tracking(call_id, caller_number, tenant_id)
+        
         # Generate initial greeting
         greeting = await self._generate_initial_greeting(context, db)
         context.add_message("assistant", greeting)
@@ -158,6 +163,10 @@ class VoiceAgentService:
                 call.status = "completed"
                 await db.commit()
             
+            # End metrics tracking
+            from app.services.metrics import metrics_collector
+            await metrics_collector.end_call_tracking(call_id, db)
+            
             # Remove from active conversations
             del self.active_conversations[call_id]
             
@@ -188,9 +197,11 @@ class VoiceAgentService:
         context: ConversationContext, 
         db: AsyncSession
     ) -> str:
-        """Generate AI response using OpenAI"""
+        """Generate AI response using OpenAI with metrics tracking"""
         
         try:
+            from app.services.metrics import metrics_collector
+            start_time = time.time()
             # Get tenant configuration
             tenant = context.get_context("tenant")
             
@@ -226,10 +237,21 @@ class VoiceAgentService:
                 )
                 return function_response
             
-            return message.content.strip()
+            response_text = message.content.strip()
+            
+            # Record metrics
+            duration_ms = (time.time() - start_time) * 1000
+            await metrics_collector.record_api_call("openai", "chat_completion", duration_ms, True)
+            
+            return response_text
             
         except Exception as e:
             logger.error(f"AI response generation error: {e}")
+            
+            # Record error metrics
+            duration_ms = (time.time() - start_time) * 1000
+            await metrics_collector.record_api_call("openai", "chat_completion", duration_ms, False, str(e))
+            
             return "I apologize, but I'm having trouble processing your request right now."
     
     async def _text_to_speech(
@@ -237,18 +259,34 @@ class VoiceAgentService:
         text: str, 
         context: ConversationContext
     ) -> bytes:
-        """Convert text to speech using ElevenLabs"""
+        """Convert text to speech using ElevenLabs with caching"""
         try:
-            # Get tenant's preferred voice settings
-            voice_id = settings.ELEVENLABS_VOICE_ID
+            from app.services.audio_processor import audio_processor
             
+            # Get voice settings
+            voice_settings = {
+                "voice_id": settings.ELEVENLABS_VOICE_ID,
+                "stability": settings.ELEVENLABS_STABILITY,
+                "similarity_boost": settings.ELEVENLABS_SIMILARITY_BOOST
+            }
+            
+            # Check cache first
+            cached_audio = await audio_processor.get_cached_audio(text, voice_settings)
+            if cached_audio:
+                return cached_audio
+            
+            # Generate new audio
             audio = generate(
                 text=text,
-                voice=voice_id,
+                voice=voice_settings["voice_id"],
                 model="eleven_multilingual_v2",
-                stability=settings.ELEVENLABS_STABILITY,
-                similarity_boost=settings.ELEVENLABS_SIMILARITY_BOOST
+                stability=voice_settings["stability"],
+                similarity_boost=voice_settings["similarity_boost"]
             )
+            
+            # Cache the generated audio
+            if audio:
+                await audio_processor.cache_audio(text, audio, voice_settings)
             
             return audio
             
@@ -268,7 +306,7 @@ class VoiceAgentService:
         agent_name = context.get_context("agent_name", "AI Assistant")
         personality = context.get_context("agent_personality", "")
         
-        # Get relevant knowledge base content
+        # Get relevant knowledge base content with conversation context
         last_user_message = ""
         if context.messages:
             for msg in reversed(context.messages):
@@ -278,13 +316,25 @@ class VoiceAgentService:
         
         knowledge_context = ""
         if last_user_message:
-            knowledge = await knowledge_service.search_knowledge(
-                tenant.id, last_user_message, db, limit=3
+            # Use enhanced knowledge search with conversation context
+            knowledge = await knowledge_service.search_knowledge_for_conversation(
+                tenant_id=tenant.id,
+                user_message=last_user_message,
+                conversation_history=context.messages,
+                db=db,
+                limit=3
             )
+            
             if knowledge:
-                knowledge_context = "\n\nRelevant knowledge:\n" + "\n".join([
-                    f"- {item['content'][:200]}..." for item in knowledge
-                ])
+                # Format knowledge for natural conversation
+                formatted_knowledge = await knowledge_service.format_knowledge_for_conversation(
+                    knowledge_results=knowledge,
+                    user_question=last_user_message,
+                    conversation_context=context.messages
+                )
+                
+                if formatted_knowledge:
+                    knowledge_context = f"\n\nRelevant information to help answer:\n{formatted_knowledge}"
         
         system_prompt = f"""You are {agent_name}, an AI assistant for {tenant.name}.
 
